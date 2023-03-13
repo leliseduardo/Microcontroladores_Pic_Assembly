@@ -1,0 +1,494 @@
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é configurar e utilizar o módulo CCP1 do Pic no modo de compar
+                            ação. Este módulo compara
+                      00003 ;       os registradores de contagem <CCPR1H::CCPR1L> com os contadores do TMR1 <TMR1H:TMR1L> e, no caso
+                             deste programa, 
+                      00004 ;       gera uma interrupção quando os valores são iguais. Configurando o modo de comparação do modo tri
+                            gger special event,
+                      00005 ;       quando <CCPR1H::CCPR1L> e <TMR1H:TMR1L> são iguais, CCP1IF seta e ocorre uma interurpção, e o co
+                            ntador <TMR1H:TMR1L>
+                      00006 ;       é zerado.
+                      00007 ;               Neste modo, <CCPR1H::CCPR1L> é fixo e não muda, enquanto <TMR1H:TMR1L> conta de 0 até o 
+                            valor de <CCPR1H::CCPR1L>,
+                      00008 ;       que é quando o programa interrompe e zera <TMR1H:TMR1L>. 
+                      00009 ;               Nesta configuração, gera-se uma interrupção de tempos em tempos e pode-se criar um oscil
+                            ador, alternando alguma
+                      00010 ;       saída. No caso utilizou-se a saída RB3, que é a saída do módulo CCP1. Porém, nesta configuração,
+                             não é necessário
+                      00011 ;       que a saída seja este pino, pode ser qualquer um.
+                      00012 ;               O tempo de interrupção do modo de comparação, nesta configuração, pode ser calculado pel
+                            a equação abaixo:
+                      00013 ;
+                      00014 ;               Interrupcao = ciclo de maquina * prescaler TMR1 * <CCPR1H::CCPR1L> 
+                      00015 ;               Interrupcao = 1us * 1 * 0404h
+                      00016 ;               Interrupção = 1,028ms
+                      00017 ;
+                      00018 ;               Pode-se calcular o período de oscilação de um pino, feita por essa interrupção, como se 
+                            segue:
+                      00019 ;
+                      00020 ;               Periodo = 2 x Interupcao
+                      00021 ;               Periodo = 2 x 1,028ms
+                      00022 ;               Periodo = 2,056ms
+                      00023 ;
+                      00024 ;               Na simulação o programa funcionou perfeitamente, oscilando exatamente no tempo calculado
+                             e configurado.
+                      00025 ;
+                      00026 
+                      00027         list            p=16f628a                                       ; Informa o microcontrolador uti
+                            lizado
+                      00028         
+                      00029         
+                      00030 ; --- Documentação ---
+                      00031 
+                      00032         #include        <p16f628a.inc>                          ; Inclui o documento com os registradore
+                            s do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00033         
+                      00034 
+                      00035 ; --- Fuse bits ---
+                      00036 
+2007   3F21           00037         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00038         
+                      00039 ; Configura oscilador de 4MHz, Power Up Timer ligado e Master Clear Ligado
+                      00040 
+                      00041 
+                      00042 ; --- Paginação de memória ---
+                      00043 
+                      00044         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar banco 0
+                             de memória
+                      00045         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar banco 1
+                             de memória
+                      00046         
+                      00047 ; --- Mapeamento de hardware --- 
+                      00048 
+                      00049         #define         led1    PORTB,0                         ; Cria mnemônico para led1 em RB0
+                      00050         #define         botao1  PORTB,7                         ; Cria mnemônico para botao1 em RB7
+                      00051         
+                      00052 ; --- Registradores de uso geral ---
+                      00053 
+                      00054         cblock          H'20'                                           ; Endereço de inicio de configur
+                            ação de registradores de uso geral
+                      00055         
+  00000020            00056         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00057         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+                      00058         
+                      00059         endc                                                                    ; Fim da configuração do
+                            s registradores de uso geral
+                      00060         
+                      00061 ; --- Vetor de Reset --- 
+                      00062 
+0000                  00063         org                     H'0000'                                         ; Origem do endereço de 
+                            mémoria do vetor de Reset
+                      00064         
+0000   2812           00065         goto            inicio                                          ; Desvia para label do programa 
+                            principal
+                      00066         
+                      00067 ; --- Vetor de Interrupção      ---
+                      00068 
+0004                  00069         org             H'0004'                                         ; Origem do endereço de memória 
+                            do vetor de Interrupção
+                      00070         
+                      00071 ; -- Salvamento de contexto --
+                      00072 
+0004   00A0           00073         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00074         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0006   1283           00075         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+0007   00A1           00076         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00077         
+                      00078 ; -- Fim do salvamento de contexto --
+                      00079 
+                      00080         
+                      00081         ; Desenvolvimento da ISR...
+                      00082         
+0008   1D0C           00083         btfss           PIR1,CCP1IF                                     ; Testa se a flag CCP1IF setou, 
+                            se sim, pula uma linha
+0009   280D           00084         goto            exit_ISR                                        ; Se não setou, sai da interrupç
+                            ão
+000A   110C           00085         bcf                     PIR1,CCP1IF                                     ; Limpa a flag CCP1IF
+                      00086         
+000B   3008           00087         movlw           H'08'                                           ; w = 08h
+000C   0686           00088         xorwf           PORTB,F                                         ; Faz XOR com PORTB para inverte
+                            r o estado de RB3
+                      00089 
+                      00090 ; -- Recuperação de contexto --
+                      00091 
+000D                  00092 exit_ISR:                                                                       ; Cria label para sair d
+                            a interrupção
+                      00093 
+000D   0E21           00094         swapf           STATUS_TEMP,w                           ; w = STATUS (original)
+000E   0083           00095         movwf           STATUS                                          ; STATUS = STATUS (original)
+000F   0EA0           00096         swapf           W_TEMP,F                                        ; W_TEMP = w (com nibbles invert
+                            idos)
+0010   0E20           00097         swapf           W_TEMP,w                                        ; w = w (original)
+                      00098         
+0011   0009           00099         retfie                                                                  ; Volta para o endereço 
+                            de memória que estava quando interrompeu
+                      00100         
+                      00101 ; -- Fim da recuperação de contexto --
+                      00102 
+                      00103 
+                      00104 ; --- Programa principal ---
+                      00105 
+0012                  00106 inicio:                                                                         ; Criação da label do pr
+                            ograma principal
+                      00107 
+0012   1683           00108         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0013   30FF           00109         movlw           H'FF'                                           ; w = FFh
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0014   0085           00110         movwf           TRISA                                           ; Configura todo PORTA como entr
+                            ada digital
+0015   30F7           00111         movlw           H'F7'                                           ; w = F7h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0016   0086           00112         movwf           TRISB                                           ; Configura apenas RB3 como saíd
+                            a digital, o resto como entrada
+0017   178B           00113         bsf                     INTCON,GIE                                      ; Ativa a interrupção gl
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            obal
+0018   170B           00114         bsf                     INTCON,PEIE                                     ; Ativa a interrupção po
+                            r periféricos
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0019   150C           00115         bsf                     PIE1,CCP1IE                                     ; Ativa a interrupção do
+                             módulo CCP1
+001A   1283           00116         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+001B   3007           00117         movlw           H'07'                                           ; w = 07h
+001C   009F           00118         movwf           CMCON                                           ; Desabilita os comparadores int
+                            ernos
+001D   300B           00119         movlw           H'0B'                                           ; w = 0Bh
+001E   0097           00120         movwf           CCP1CON                                         ; Configura o módulo CCP1 em mod
+                            o de comparação, resetando TMR1 no estouro
+001F   1410           00121         bsf                     T1CON,TMR1ON                            ; Habilita o timer1
+0020   3004           00122         movlw           H'04'                                           ; w = 04h
+0021   0096           00123         movwf           CCPR1H                                          ; CCPR1H = 04h
+0022   0095           00124         movwf           CCPR1L                                          ; CCPR1L = 04h
+0023   1186           00125         bcf                     PORTB,3                                         ; Inicia RB3 em Low     
+                      00126 
+0024                  00127 loop:                                                                           ; Criação da label de lo
+                            op infinito
+                      00128 
+                      00129 
+                      00130 
+0024   2824           00131         goto loop                                                               ; Desvia para label de l
+                            oop infinito
+                      00132         
+                      00133         
+                      00134         
+                      00135         
+                      00136 ; --- Fim do programa ---
+                      00137 
+                      00138 
+                      00139         end                                                                             ; Final do progr
+                            ama
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  5
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51       OSCILADORMODOCOMPARACAO.ASM   9-4-2020  10:40:15         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,7
+exit_ISR                          0000000D
+inicio                            00000012
+led1                              PORTB,0
+loop                              00000024
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXX----------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    34
+Program Memory Words Free:  2014
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     3 reported,     0 suppressed
+
+

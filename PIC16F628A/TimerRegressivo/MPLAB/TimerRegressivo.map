@@ -1,0 +1,48 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Tue Sep 01 19:14:51 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x0000a2
+.config_2007_TIMERREGRESSIVO.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x000054      
+                            0x002007    0x002007      
+            83 out of 2182 program addresses used, program memory utilization is 3%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 adiciona   0x00004e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                 auxiliar   0x000037    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                  display   0x00003b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                  encerra   0x000051    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                 exit_ISR   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                   inicio   0x00001d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                     loop   0x000033    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                   inicio   0x00001d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                     loop   0x000033    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                 auxiliar   0x000037    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                  display   0x00003b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                 adiciona   0x00004e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+                  encerra   0x000051    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TimerRegressivo\MPLAB\TimerRegressivo.asm
+
+

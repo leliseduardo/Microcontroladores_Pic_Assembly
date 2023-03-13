@@ -1,0 +1,66 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Thu Sep 10 21:21:12 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x00013a
+.config_2007_LCDESCREVE2.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x0000a0      
+                            0x002007    0x002007      
+            159 out of 8454 program addresses used, program memory utilization is 1%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+               BUSY_CHECK   0x000067    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                   _500ms   0x000079    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                     aux1   0x00007b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                     aux2   0x00007d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+            conv_binToDec   0x000089    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                  end_adj   0x00009e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                  incDezA   0x00009d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                 lcd_char   0x00004c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+              lcd_command   0x00005e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                lcd_hello   0x00002d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                 lcd_init   0x000055    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                lcdnobusy   0x000073    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                     loop   0x00001d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                start_adj   0x000090    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                     loop   0x00001d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                lcd_hello   0x00002d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                 lcd_char   0x00004c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                 lcd_init   0x000055    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+              lcd_command   0x00005e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+               BUSY_CHECK   0x000067    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                lcdnobusy   0x000073    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                   _500ms   0x000079    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                     aux1   0x00007b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                     aux2   0x00007d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+            conv_binToDec   0x000089    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                start_adj   0x000090    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                  incDezA   0x00009d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+                  end_adj   0x00009e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDEscreve2\MPLAB\LCDEscreve2.asm
+
+

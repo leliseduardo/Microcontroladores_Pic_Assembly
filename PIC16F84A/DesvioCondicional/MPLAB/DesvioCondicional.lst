@@ -1,0 +1,285 @@
+MPASM  5.51             DESVIOCONDICIONAL.ASM   8-20-2020  9:57:32         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F84A                       Clock = 4MHz            Ciclo de máquina = 1us  
+                      00003 ;
+                      00004 ;               O objetivo desta aula é apresentar os quatro comando existentes em Assembly para Pic que
+                             realizam um desvio con-
+                      00005 ;       dicional, isto é, desviam o programa a partir de certa condição, ou certo acontecimento.
+                      00006 ;               Em Assembly, qualquer desvio condicional apenas faz com que o programa pule uma linha e,
+                             ainda sim, é um tipo de
+                      00007 ;       execução de extrema importância em várias aplicações e situações.
+                      00008 ;               Vale ressaltar que um desvio incondicional é aquele que não depende de nenhuma condição 
+                            ou acontecimento para 
+                      00009 ;       desviar o programa. Um exemplo é o comando "goto label" que, dado o comando e a label para qual 
+                            deve desviar, ele 
+                      00010 ;       desvia a execução na hora. 
+                      00011 ;               Os quatro comandos de desvio condicional estão em uma tabela ao fim do programa.
+                      00012 ;
+                      00013 ;               O debug do programa funcionou como esperado.
+                      00014 ;
+                      00015 
+                      00016 
+Warning[205]: Found directive in column 1. (list)
+                      00017 list p=16f84a ; Informa o microcontrolador utilizado
+                      00018         
+                      00019         ; --- Arquivos utilizados no projeto
+                      00020         #include <p16f84a.inc>  ; Inclui o microcontrolador utilizado
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F84A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00208         LIST
+                      00021         
+                      00022         ; --- Fuse bits ---
+2007   3FF1           00023         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _CP_OFF       ; Configura os fuses do microcontrolador
+                            . Clock de 4MHz,
+                      00024                                                                                                         
+                                    ; Watchdog timer desligado, PowerUp Timer ligado e Code Protect
+                      00025                                                                                                         
+                                    ; desligado
+                      00026                                                                                                         
+                                    
+                      00027         ; --- Paginação de memória ---
+                      00028         #define         bank0   bcf             STATUS,RP0              ; Cria um mnemônico para o banco
+                             0 de memória
+                      00029         #define         bank1   bsf             STATUS,RP0              ; Cria um mnemônico para o banco
+                             1 de memória
+                      00030         
+                      00031         ; --- Saídas ---
+                      00032         #define         led1    PORTB,RB7       ; Cria um mnemônico para a saída RB7
+                      00033         #define         led2    PORTB,RB6       ; Cria um menmônico para a saída RB6
+MPASM  5.51             DESVIOCONDICIONAL.ASM   8-20-2020  9:57:32         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00034         
+                      00035         ; --- Registradores de uso geral ---
+                      00036         cblock          H'0C'           ; Inicio da memória dos registradores de uso geral
+                      00037         
+  0000000C            00038         register1               ;       Endereço H'0C'
+  0000000D            00039         register2               ;       Endereço H'0D'
+                      00040         
+                      00041         endc
+                      00042         
+                      00043         ;
+                      00044         ;       register1       equ             H'0C'
+                      00045         ;       register2       equ             H'0D'
+                      00046         ;
+                      00047         ;       Esta é uma das formas de se declarar os registradores de uso geral
+                      00048         ;
+                      00049         
+                      00050         
+                      00051         
+                      00052         
+                      00053         ; --- Vetor de Reset ---
+0000                  00054         org             H'0000'         ; Informa o endereço do vetor Reset no banco de memória
+                      00055         
+0000   2805           00056         goto inicio     ; Desvia o programa para a label inicio
+                      00057         
+                      00058         ; --- Vetor de interrupção
+0004                  00059         org                     H'0004'         ; Informa o endereço do vetor de interrupção no banco de
+                             memória
+                      00060         
+0004   0009           00061         retfie          ; Retorna a execução para o local onde o programa foi interrompido
+                      00062         
+                      00063         
+                      00064         ; --- Programa principal ---
+Warning[207]: Found label after column 1. (inicio)
+0005                  00065         inicio:
+                      00066         
+0005   1683           00067                 bank1                   ; Seleciona o banco 1 de memória
+0006   303F           00068                 movlw   H'3F'   ; Move o valor 3F para o registrador w
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0007   0086           00069                 movwf   TRISB   ; Move o valor de w para o registrador TRISB e configura RB7 e RB6 como 
+                            saídas digitais
+0008   1283           00070                 bank0                   ; Seleciona o banco 0 de memória        
+0009   303F           00071                 movlw   H'3F'   ; Move o valor 3F para w
+000A   0086           00072                 movwf   PORTB   ; Move o valor de w para PORTB e inicia as portas RB7 e RB6 em Low
+000B   018C           00073                 clrf    register1       ; Inicia o registrador de uso geral register1 todo em Low
+000C   018D           00074                 clrf    register2       ; Inicia o registrador de uso geral register2 todo em Low
+                      00075                 
+Warning[207]: Found label after column 1. (loop)
+000D                  00076                 loop:                   ; Cria a label loop, que é a label do loop infinito
+                      00077                 
+000D   300A           00078                         movlw   D'10'           ; w = 10 decimal
+000E   008C           00079                         movwf   register1       ; register1 = w
+                      00080                         
+000F   3004           00081                         movlw   B'00000100' ; w = 00000100
+MPASM  5.51             DESVIOCONDICIONAL.ASM   8-20-2020  9:57:32         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0010   008D           00082                         movwf   register2       ; register2 = w
+                      00083                         
+Warning[207]: Found label after column 1. (aux)
+0011                  00084                         aux:
+                      00085                         
+0011   1D0D           00086                                 btfss register2,2                               ; Decrementa 1 de regist
+                            er1 e salva no proprio register1. register1 = 0 ?
+0012   2811           00087                                 goto aux                                                ; Não. Desvia pa
+                            ra label aux
+0013   280D           00088                                 goto loop                                               ; Sim. Desvia pa
+                            ra label loop
+                      00089                         
+0014   280D           00090                 goto loop               ; Desvia o programa para a label loop
+                      00091                 
+                      00092                         
+                      00093                         
+                      00094                 end
+MPASM  5.51             DESVIOCONDICIONAL.ASM   8-20-2020  9:57:32         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DC                                00000001
+EEADR                             00000009
+EECON1                            00000088
+EECON2                            00000089
+EEDATA                            00000008
+EEIE                              00000006
+EEIF                              00000004
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_PD                            00000003
+NOT_RBPU                          00000007
+NOT_TO                            00000004
+OPTION_REG                        00000081
+PCL                               00000002
+PCLATH                            0000000A
+PORTA                             00000005
+PORTB                             00000006
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+TMR0                              00000001
+MPASM  5.51             DESVIOCONDICIONAL.ASM   8-20-2020  9:57:32         PAGE  5
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR0IE                            00000005
+TMR0IF                            00000002
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+Z                                 00000002
+_CONFIG                           00002007
+_CP_OFF                           00003FFF
+_CP_ON                            0000000F
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F84A                          00000001
+__DEBUG                           1
+aux                               00000011
+bank0                             bcf             STATUS,RP0
+bank1                             bsf             STATUS,RP0
+inicio                            00000005
+led1                              PORTB,RB7
+led2                              PORTB,RB6
+loop                              0000000D
+MPASM  5.51             DESVIOCONDICIONAL.ASM   8-20-2020  9:57:32         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+register1                         0000000C
+register2                         0000000D
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXX----------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    18
+Program Memory Words Free:  1006
+
+
+Errors   :     0
+Warnings :     4 reported,     0 suppressed
+Messages :     1 reported,     0 suppressed
+
+

@@ -1,0 +1,1109 @@
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é utilizar três display de 7 segmentos multiplexados para, fin
+                            almente, demonstrar a 
+                      00003 ;       tensão lida pelo voltímetor desenvolvidos nas últimas aulas. Para isso, será uitilizado o timer0
+                             para multiplexação
+                      00004 ;       dos displays e uma subrotina que decodifica o display.
+                      00005 ;               Grande parte deste código foi apenas copiado do código disponibilizado pelo professor, p
+                            orém, muita coisa que 
+                      00006 ;       foi feita eu já fiz em outros projetos em Assembly e em C, logo, mesmo que eu não tenha escrito 
+                            a minha própria 
+                      00007 ;       maneira, o código todo foi entendido. Além disso, como juntei os códigos da última aula e ainda 
+                            escrevi uma coisa ou
+                      00008 ;       outra, o código foi totalmente entendido.
+                      00009 ;               
+                      00010 ;               Na prática o circuito funcionou como esperado!  
+                      00011 ;
+                      00012 
+                      00013         list p=16f876a                                                  ; Informa o microcontrolador uti
+                            lizado
+                      00014         
+                      00015         
+                      00016 ; --- Documentação ---
+                      00017 
+                      00018 
+                      00019         #include        <p16f876a.inc>                          ; Inclui o arquivo que contém os registr
+                            adores do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F876A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00524         LIST
+                      00020         
+                      00021         
+                      00022 ; --- Fuse bits ---
+                      00023 
+                      00024         
+2007   3F31           00025         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _BOREN_OFF & _LVP_OFF  & _CP_OFF & _CPD_OFF
+                      00026         
+                      00027         ; Configura clock  4MHz, liga o Power Up Timer e desliga o Master Clear
+                      00028         
+                      00029         
+                      00030 ; --- Paginação de memória ---
+                      00031 
+                      00032         
+                      00033         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00034         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00035         
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00036         
+                      00037 ; --- Mapeamento de hardware ---
+                      00038 
+                      00039         #define         digit1  PORTB,3                         ;digito de controle da centena do displa
+                            y
+                      00040         #define     digit2  PORTB,2                             ;digito de controle da dezena do display
+                      00041         #define         digit3  PORTB,1                         ;digito de controle da unidade do displa
+                            y
+                      00042         
+                      00043         
+                      00044 ; --- Registradores de uso geral ---
+                      00045 
+                      00046 
+                      00047         cblock          H'20'                                           ; Endereço de inicio para config
+                            uração de registradores de uso geral
+                      00048         
+  00000020            00049         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00050         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00051         adc                                                                             ; Armazena a lei
+                            tura de ADC
+                      00052         
+  00000023            00053         REG1H                                                                   ;byte alto registrador 1
+                             de 16 bits utilizado na rotina de divisão
+  00000024            00054         REG1L                                                                   ;byte baixo registrador 
+                            1 de 16 bits utilizado na rotina de divisão
+  00000025            00055         REG2H                                                                   ;byte alto registrador 2
+                             de 16 bits utilizado na rotina de divisão
+  00000026            00056         REG2L                                                                   ;byte baixo registrador 
+                            2 de 16 bits utilizado na rotina de divisão
+  00000027            00057         REG3H                                                                   ;byte alto registrador 3
+                             de 16 bits utilizado na rotina de divisão
+  00000028            00058         REG3L                                                                   ;byte baixo registrador 
+                            3 de 16 bits utilizado na rotina de divisão
+  00000029            00059         REG4H                                                                   ;byte alto registrador 4
+                             de 16 bits utilizado na rotina de divisão
+  0000002A            00060         REG4L                                                                   ;byte baixo registrador 
+                            4 de 16 bits utilizado na rotina de divisão
+  0000002B            00061         AUX_H                                                                   ;byte baixo de registrad
+                            or de 16 bits para retornar valor da div
+  0000002C            00062         AUX_L                                                                   ;byte baixo de registrad
+                            or de 16 bits para retornar valor da div
+  0000002D            00063         AUX_TEMP                                                                ;contador temporário usa
+                            do na rotina de divisão
+  0000002E            00064         REG_MULT1                                                               ;registrador 1 para mult
+                            iplicação
+  0000002F            00065         REG_MULT2                                                               ;registrador 2 para mult
+                            iplicação
+  00000030            00066         REG_AUX                                                                 ;registrador auxiliar
+  00000031            00067         UNI                                                                             ;armazena unidad
+                            e
+  00000032            00068         DEZ_A                                                                   ;armazena unidade da dez
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            ena
+  00000033            00069         DEZ_B                                                                   ;armazena dezena
+                      00070         
+  00000034            00071         counter                                                                 ;Registrador auxiliar de
+                             contagem
+  00000035            00072         CEN_DISP                                                                ;Centena do número exibi
+                            do no display
+  00000036            00073         DEZ_DISP                                                                ;Dezena do número exibid
+                            o no display
+  00000037            00074         UNI_DISP                                                                ;Unidade do número exibi
+                            do no display
+                      00075         
+                      00076         
+                      00077         endc                                                                    ; Fim da configuração de
+                             registradores de uso geral
+                      00078         
+Warning[207]: Found label after column 1. (cont1)
+  00000023            00079         cont1           equ             H'23'                           ; Contador auxiliar no banco 0 d
+                            e memória
+Warning[207]: Found label after column 1. (cont2)
+  000000A1            00080         cont2           equ             H'A1'                           ; Contador auxiliar no banco 1 d
+                            e memória
+                      00081         
+                      00082 ; --- Vetor de Reset ---
+                      00083 
+                      00084         
+0000                  00085         org                     H'0000'                                         ; Endereço de origem do 
+                            vetor de Reset
+                      00086         
+0000   282C           00087         goto            inicio                                          ; Desvia para o programa princip
+                            al      
+                      00088         
+                      00089         
+                      00090 ; --- Vetor de Interrupção ---
+                      00091 
+                      00092         
+0004                  00093         org                     H'0004'                                         ; Endereço de origem do 
+                            vetor de Interrupção
+                      00094         
+                      00095 ; -- Salvamento de contexto --
+                      00096 
+0004   00A0           00097         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00098         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00099         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00100         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00101         
+                      00102 ; -- Fim do salvamento de contexto
+                      00103 
+                      00104         ; Desenvolvimento da ISR...
+                      00105         
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0008   1D0B           00106         btfss           INTCON,T0IF                                     ;Houve overflow do Timer0?
+0009   2827           00107         goto            exit_ISR                                        ;Não, desvia para saída da inter
+                            rupção
+000A   110B           00108         bcf                     INTCON,T0IF                                     ;Sim, limpa flag
+                      00109         
+                      00110         
+000B   1986           00111         btfsc           digit1                                          ;Digito da centena ativado?
+000C   2818           00112         goto            copy_dez                                        ;Sim, desvia para atualizar dez
+000D   1906           00113         btfsc           digit2                                          ;Não. Digito da dez ativado?
+000E   2820           00114         goto            copy_uni                                        ;Sim, desvia para atualizar unid
+                            ade
+000F   1886           00115         btfsc           digit3                                          ;Não. Digito da unidade ativado?
+                      00116                                                                                         ;Sim, atualiza c
+                            entena
+                      00117         
+0010                  00118 copy_cen:
+                      00119 
+0010   1106           00120         bcf                     digit2                                          ;Desliga digito da dezen
+                            a
+0011   1086           00121         bcf                     digit3                                          ;Desliga digito da unida
+                            de
+0012   0187           00122         clrf            PORTC                                           ;limpa PORTC
+0013   1586           00123         bsf                     digit1                                          ;Liga digito da centena
+0014   0835           00124         movf            CEN_DISP,W                                      ;move conteúdo de centena para w
+                            ork
+0015   20BF           00125         call            send_disp                                       ;chama sub rotina para atualizar
+                             display
+0016   0087           00126         movwf           PORTC                                           ;PORTC recebe o dado convertido
+0017   2827           00127         goto            exit_ISR                                        ;desvia para saída da interrupçã
+                            o
+                      00128         
+                      00129         
+0018                  00130 copy_dez:
+                      00131 
+0018   1086           00132         bcf                     digit3                                          ;Desliga digito da unida
+                            de
+0019   1186           00133         bcf                     digit1                                          ;Desliga digito da cente
+                            na
+001A   0187           00134         clrf            PORTC                                           ;limpa PORTC
+001B   1506           00135         bsf                     digit2                                          ;Liga digito mais signif
+                            icativo
+001C   0836           00136         movf            DEZ_DISP,W                                      ;move conteúdo de dezena para wo
+                            rk
+001D   20BF           00137         call            send_disp                                       ;chama sub rotina para atualizar
+                             display
+001E   0087           00138         movwf           PORTC                                           ;PORTC recebe o dado convertido
+001F   2827           00139         goto            exit_ISR                                        ;desvia para saída da interrupçã
+                            o
+                      00140         
+0020                  00141 copy_uni:
+                      00142 
+0020   1186           00143         bcf                     digit1                                          ;Limpa digito da centena
+0021   1106           00144         bcf                     digit2                                          ;Limpa digito da dezena
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0022   0187           00145         clrf            PORTC                                           ;Limpa PORTC
+0023   1486           00146         bsf                     digit3                                          ;Liga digito da unidade
+0024   0837           00147         movf            UNI_DISP,W                                      ;move conteúdo de unidade para w
+                            ork
+0025   20BF           00148         call            send_disp                                       ;chama sub rotina para atualizar
+                             display
+0026   0087           00149         movwf           PORTC                                           ;PORTC recebe o dado convertido
+                      00150         ;goto           exit_ISR                                        ;desvia para saída da interrupçã
+                            o
+                      00151         
+                      00152 ; -- Recuperação de contexto --
+                      00153 
+0027                  00154 exit_ISR:
+                      00155 
+0027   0E21           00156         swapf           STATUS_TEMP,w                           ; w = STATUS (original)
+0028   0083           00157         movwf           STATUS                                          ; STATUS = STATUS (original)
+0029   0EA0           00158         swapf           W_TEMP,F                                        ; W_TEMP = w (com nibbles invert
+                            idos)
+002A   0E20           00159         swapf           W_TEMP,w                                        ; W_TEMP = w (original)
+                      00160         
+002B   0009           00161         retfie                                                                  ; Retorna para o endereç
+                            o que estava quando ocorreu a interrupção
+                      00162         
+                      00163 ; -- Fim da recuperação de contexto --
+                      00164 
+                      00165 
+                      00166 ; --- Programa principal ---
+                      00167 
+002C                  00168 inicio:                                                                         ; Cria label do programa
+                             principal
+                      00169 
+002C   30A0           00170         movlw           H'A0'                                           ;move literal 00h para Work
+002D   008B           00171         movwf           INTCON                                          ;habilita interrupção global e d
+                            o Timer0
+                      00172 
+002E   1683           00173         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+002F   30FF           00174         movlw           H'FF'                                           ; w = FF
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0030   0085           00175         movwf           TRISA                                           ; Configura todo PORTA como entr
+                            ada
+0031   30F1           00176         movlw           H'F1'                                           ; w = 00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0032   0086           00177         movwf           TRISB                                           ; Configura RB1, RB2 e RB3 como 
+                            saída digital
+0033   3080           00178         movlw           H'80'                                           ; w = 00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0034   0087           00179         movwf           TRISC                                           ; Configura apenas RB7 como entr
+                            ada digital, o resto como saída
+0035   30D3           00180         movlw           H'D3'                                           ;move literal D3h para Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0036   0081           00181         movwf           OPTION_REG                                      ;Timer0 incrementa com ciclo de 
+                            máquina, ps 1:32
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0037   2058           00182         call            configura_ADC                           ; Chama subrotina configura_ADC
+0038   1283           00183         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+0039   3007           00184         movlw           H'07'                                           ;move literal 07h para work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+003A   009C           00185         movwf           CMCON                                           ;desabilita comparadores
+                      00186         
+003B   1186           00187         bcf                     digit1                                          ;desativa digito da cent
+                            ena
+003C   01B7           00188         clrf            UNI_DISP                                        ;limpa unidade do display
+003D   01B6           00189         clrf            DEZ_DISP                                        ;limpa dezena do display
+003E   01B5           00190         clrf            CEN_DISP                                        ;limpa centena do display
+                      00191         
+003F   3004           00192         movlw           D'4'
+0040   00B5           00193         movwf           CEN_DISP
+0041   3006           00194         movlw           D'6'
+0042   00B6           00195         movwf           DEZ_DISP
+0043   3003           00196         movlw           D'3'
+0044   00B7           00197         movwf           UNI_DISP
+                      00198 
+                      00199 ; -- Loop infinito --
+                      00200 
+0045                  00201 loop:                                                                           ; Cria label para loop i
+                            nfinito
+                      00202 
+0045   151F           00203         bsf                     ADCON0,GO_DONE                          ; Inicia leitura do ADC
+                      00204         
+0046                  00205 espera_leitura:
+                      00206 
+0046   191F           00207         btfsc           ADCON0,GO_DONE                          ; Testa se flag GO_DONE limpou, se sim, 
+                            pula uma linha
+0047   2846           00208         goto            espera_leitura                          ; Se não limpou, desvia para label esper
+                            a_leitura
+                      00209         
+0048   081E           00210         movf            ADRESH,w                                        ; w = ADRESH, armazena em w o co
+                            nteúdo lido pelo ADC
+0049   00AE           00211         movwf           REG_MULT1                                       ; REG_MULT1 = w = ADRESH
+004A   30FA           00212         movlw           D'250'                                          ; w = 250d
+004B   00AF           00213         movwf           REG_MULT2                                       ; REG_MULT2 = 250d
+004C   2077           00214         call            multip                                          ; Chama a subrotina de multiplic
+                            ação
+004D   082B           00215         movf            AUX_H,w                                         ; w = AUX_H, armazena em w o con
+                            teúdo mais significativo do resultado da mult
+004E   00A5           00216         movwf           REG2H                                           ; REG2H = AUX_H
+004F   082C           00217         movf            AUX_L,w                                         ; w = AUX_L, armazena em w o con
+                            teúdo menos significativo do resultado da mult
+0050   00A6           00218         movwf           REG2L                                           ; REG2L = AUX_L
+0051   01A3           00219         clrf            REG1H                                           ; Limpa REG1H
+0052   30FF           00220         movlw           D'255'                                          ; w = 255d
+0053   00A4           00221         movwf           REG1L                                           ; REG1L = 255d
+0054   209C           00222         call            divid                                           ; Chama subrotina de divisão
+0055   0826           00223         movf            REG2L,w                                         ; w = REG2L
+0056   205F           00224         call            conv_binToDec                           ; Chama subrotina que converte binário e
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            m decimal
+                      00225 
+                      00226 
+0057   2845           00227         goto            loop                                            ; Desvia para loop infinito
+                      00228         
+                      00229         
+                      00230         
+                      00231 ; --- SubRotinas ---
+                      00232 
+0058                  00233 configura_ADC:
+                      00234 
+0058   1683           00235         bank1                                                                   ; Seleciona o banco 1 de
+                             memória
+0059   300E           00236         movlw           H'0E'                                           ; w = OEh
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+005A   009F           00237         movwf           ADCON1                                          ; Justificado a esquerda, Fosc/2
+                            , apenas AN0 habilitado
+005B   1283           00238         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+005C   3041           00239         movlw           H'41'                                           ; w = 41h
+005D   009F           00240         movwf           ADCON0                                          ; Fosc/8, canal 0 de conversão e
+                             liga o conversor AD
+                      00241         
+005E   0008           00242         return                                                                  ; Retorna para endereço 
+                            onde a subrotina foi chamada
+                      00243 
+                      00244 ;========================================================================================
+                      00245 ; --- Sub rotina de conversão Binário para Decimal ---
+                      00246 ;**********************************************************************
+                      00247 ;* Ajuste decimal
+                      00248 ;* W [HEX] =  dezena [DEC] ; unidade [DEC]
+                      00249 ;* Conforme indicado no livro - "Conectando o PIC - Recursos avançados"
+                      00250 ;* Autores Nicolás César Lavinia e David José de Souza
+                      00251 ;*
+                      00252 ;* Alterada por Márcio José Soares para uso com números com duas dezenas e uma unidade
+                      00253 ;* Artigo disponível em arnerobotics.com.br
+                      00254 ;*
+                      00255 ;* Adaptado por Wagner Rambo para aplicação no projeto Voltímetro
+                      00256 ;*
+                      00257 ;* Recebe o valor atual de Work e retorna os registradores de usuário
+                      00258 ;* DEZ_A, DEZ_B e UNI o número BCD correspondente.
+                      00259 
+005F                  00260 conv_binToDec:
+                      00261 
+005F   00B0           00262         movwf           REG_AUX                                         ;salva valor a converter em REG_
+                            AUX
+0060   01B1           00263         clrf            UNI                                                     ;limpa unidade
+0061   01B2           00264         clrf            DEZ_A                                           ;limpa dezena A
+0062   01B3           00265         clrf            DEZ_B                                           ;limpa dezena B
+                      00266 
+0063   08B0           00267         movf            REG_AUX,F                                       ;REG_AUX = REG_AUX
+0064   1903           00268         btfsc           STATUS,Z                                        ;valor a converter resultou em z
+                            ero?
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0065   0008           00269         return                                                                  ;Sim. Retorna
+                      00270 
+0066                  00271 start_adj:
+                      00272                                                 
+0066   0AB1           00273         incf            UNI,F                                           ;Não. Incrementa UNI
+0067   0831           00274         movf            UNI,W                                           ;move o conteúdo de UNI para Wor
+                            k
+0068   3A0A           00275         xorlw           H'0A'                                           ;W = UNI XOR 10d
+0069   1D03           00276         btfss           STATUS,Z                                        ;Resultou em 10d?
+006A   2874           00277         goto            end_adj                                         ;Não. Desvia para end_adj
+                      00278                                                  
+006B   01B1           00279         clrf            UNI                                                     ;Sim. Limpa registrador 
+                            UNI
+006C   0832           00280         movf            DEZ_A,W                                         ;Move o conteúdo de DEZ_A para W
+                            ork
+006D   3A09           00281         xorlw           H'09'                                           ;W = DEZ_A XOR 9d
+006E   1D03           00282         btfss           STATUS,Z                                        ;Resultou em 9d?
+006F   2873           00283         goto            incDezA                                         ;Não, valor menor que 9. Increme
+                            nta DEZ_A
+0070   01B2           00284         clrf            DEZ_A                                           ;Sim. Limpa registrador DEZ_A
+0071   0AB3           00285         incf            DEZ_B,F                                         ;Incrementa registrador DEZ_B
+0072   2874           00286         goto            end_adj                                         ;Desvia para end_adj
+                      00287         
+0073                  00288 incDezA:
+0073   0AB2           00289         incf            DEZ_A,F                                         ;Incrementa DEZ_A
+                      00290         
+0074                  00291 end_adj:
+0074   0BB0           00292         decfsz          REG_AUX,F                                       ;Decrementa REG_AUX. Fim da conv
+                            ersão ?
+0075   2866           00293         goto            start_adj                                       ;Não. Continua
+0076   0008           00294         return                                                                  ;Sim. Retorna
+                      00295 
+                      00296 
+                      00297 ;========================================================================================
+                      00298 ; --- Sub rotina de multiplicação (baseada na nota de aplicação AN544 da Microchip) ---
+                      00299 mult    MACRO   bit                                                     ;Inicio da macro de multiplicaçã
+                            o
+                      00300 
+                      00301         btfsc           REG_MULT1,bit                           ;bit atual de REG_MULT1 limpo?
+                      00302         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+                      00303         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+                      00304         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                      00305 
+                      00306         endm                                                                    ;fim da macro
+                      00307 
+                      00308 
+0077                  00309 multip:
+                      00310 
+0077   01AB           00311         clrf            AUX_H                                           ;limpa AUX_H
+0078   01AC           00312         clrf            AUX_L                                           ;limpa AUX_L
+0079   082F           00313         movf            REG_MULT2,W                                     ;move o conteúdo de REG_MULT2 pa
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            ra Work
+007A   1003           00314         bcf                     STATUS,C                                        ;limpa o bit de carry
+                      00315 
+                      00316         mult            0                                                       ;chama macro para cada u
+                            m dos 7 bits
+                          M 
+007B   182E               M         btfsc           REG_MULT1,0                             ;bit atual de REG_MULT1 limpo?
+007C   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+007D   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+007E   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00317         mult            1                                                       ;de REG_MULT1
+                          M 
+007F   18AE               M         btfsc           REG_MULT1,1                             ;bit atual de REG_MULT1 limpo?
+0080   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+0081   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+0082   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00318         mult            2                                                       ;
+                          M 
+0083   192E               M         btfsc           REG_MULT1,2                             ;bit atual de REG_MULT1 limpo?
+0084   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+0085   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+0086   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00319         mult            3                                                       ;
+                          M 
+0087   19AE               M         btfsc           REG_MULT1,3                             ;bit atual de REG_MULT1 limpo?
+0088   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+0089   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+008A   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00320         mult            4                                                       ;
+                          M 
+008B   1A2E               M         btfsc           REG_MULT1,4                             ;bit atual de REG_MULT1 limpo?
+008C   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+008D   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+008E   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00321         mult            5                                                       ;
+                          M 
+008F   1AAE               M         btfsc           REG_MULT1,5                             ;bit atual de REG_MULT1 limpo?
+0090   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0091   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+0092   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00322         mult            6                                                       ;
+                          M 
+0093   1B2E               M         btfsc           REG_MULT1,6                             ;bit atual de REG_MULT1 limpo?
+0094   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+0095   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+0096   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00323         mult            7                                                       ;
+                          M 
+0097   1BAE               M         btfsc           REG_MULT1,7                             ;bit atual de REG_MULT1 limpo?
+0098   07AB               M         addwf           AUX_H,F                                         ;Não. Acumula soma de AUX_H
+0099   0CAB               M         rrf                     AUX_H,F                                         ;rotaciona AUX_H para di
+                            reita e armazena o resultado nele próprio
+009A   0CAC               M         rrf                     AUX_L,F                                         ;rotaciona AUX_L para di
+                            reita e armazena o resultado nele próprio
+                          M 
+                      00324 
+009B   0008           00325         return                                                                  ;retorna
+                      00326 
+                      00327 
+                      00328 ;========================================================================================
+                      00329 ; --- Sub rotina de divisão (baseada na nota de aplicação AN544 da Microchip) ---       
+                      00330         
+                      00331 ;========================================================================================
+                      00332 ;                       Double Precision Division
+                      00333 ;========================================================================================
+                      00334 ;   Division : ACCb(16 bits) / ACCa(16 bits) -> ACCb(16 bits) with
+                      00335 ;                                               Remainder in ACCc (16 bits)
+                      00336 ;      (a) Load the Denominator in location ACCaHI & ACCaLO ( 16 bits )
+                      00337 ;      (b) Load the Numerator in location ACCbHI & ACCbLO ( 16 bits )
+                      00338 ;      (c) CALL D_divF
+                      00339 ;      (d) The 16 bit result is in location ACCbHI & ACCbLO
+                      00340 ;      (e) The 16 bit Remainder is in locations ACCcHI & ACCcLO
+                      00341 ;****************************************************************************
+009C                  00342 divid:
+                      00343 
+009C   3010           00344         movlw           H'10'                                           ;move 16d para Work
+009D   00AD           00345         movwf           AUX_TEMP                                        ;carrega contador para divisão
+                      00346 
+009E   0825           00347         movf            REG2H,W                                         ;move conteúdo de REG2H para Wor
+                            k
+009F   00A9           00348         movwf           REG4H                                           ;armazena em REG4H
+00A0   0826           00349         movf            REG2L,W                                         ;move conteúdo de REG2L para Wor
+                            k
+00A1   00AA           00350         movwf           REG4L                                           ;armazena em REG4L
+00A2   01A5           00351         clrf            REG2H                                           ;limpa REG2H
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 11
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00A3   01A6           00352         clrf            REG2L                                           ;limpa REG2L
+00A4   01A7           00353         clrf            REG3H                                           ;limpa REG3H
+00A5   01A8           00354         clrf            REG3L                                           ;limpa REG3L
+                      00355 
+00A6                  00356 DIV
+00A6   1003           00357         bcf                     STATUS,C                                        ;limpa bit de carry
+00A7   0DAA           00358         rlf                     REG4L,F                                         ;rotaciona REG4L para es
+                            querda e armazena nele próprio
+00A8   0DA9           00359         rlf                     REG4H,F                                         ;rotaciona REG4H para es
+                            querda e armazena nele próprio
+00A9   0DA8           00360         rlf                     REG3L,F                                         ;rotaciona REG3L para es
+                            querda e armazena nele próprio 
+00AA   0DA7           00361         rlf                     REG3H,F                                         ;rotaciona REG3H para es
+                            querda e armazena nele próprio 
+00AB   0823           00362         movf            REG1H,W                                         ;move conteúdo de REG1H para Wor
+                            k
+00AC   0227           00363         subwf           REG3H,W                                         ;Work = REG3H - REG1H
+00AD   1D03           00364         btfss           STATUS,Z                                        ;Resultado igual a zero?
+00AE   28B1           00365         goto            NOCHK                                           ;Não. Desvia para NOCHK
+00AF   0824           00366         movf            REG1L,W                                         ;Sim. Move conteúdo de REG1L par
+                            a Work
+00B0   0228           00367         subwf           REG3L,W                                         ;Work = REG3L - REG1L
+                      00368          
+00B1                  00369 NOCHK
+00B1   1C03           00370         btfss           STATUS,C                                        ;Carry setado?
+00B2   28BA           00371         goto            NOGO                                            ;Não. Desvia para NOGO
+00B3   0824           00372         movf            REG1L,W                                         ;Sim. Move conteúdo de REG1L par
+                            a Work
+00B4   02A8           00373         subwf           REG3L,F                                         ;Work = REG3L - REG1L
+00B5   1C03           00374         btfss           STATUS,C                                        ;Carry setado?
+00B6   03A7           00375         decf            REG3H,F                                         ;decrementa REG3H 
+00B7   0823           00376         movf            REG1H,W                                         ;move conteúdo de REG1H para Wor
+                            k
+00B8   02A7           00377         subwf           REG3H,F                                         ;Work = REG3H - REG1H
+00B9   1403           00378         bsf                     STATUS,C                                        ;seta carry
+                      00379          
+00BA                  00380 NOGO
+00BA   0DA6           00381         rlf                     REG2L,F                                         ;rotaciona REG2L para es
+                            querda e salva nele próprio
+00BB   0DA5           00382         rlf                     REG2H,F                                         ;rotaciona REG2H para es
+                            querda e salva nele próprio
+00BC   0BAD           00383         decfsz          AUX_TEMP,F                                      ;decrementa AUX_TEMP. Chegou em 
+                            zero?
+00BD   28A6           00384         goto            DIV                                                     ;Não. Continua processo 
+                            de divisão
+00BE   0008           00385         return                                                                  ;Sim. Retorna
+                      00386         
+                      00387         
+                      00388         
+                      00389 ;========================================================================================       
+                      00390 
+                      00391 ;========================================================================================
+00BF                  00392 send_disp:                                                                      ;Sub rotina para convers
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 12
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            ão binário -> display 7 seg
+                      00393 
+00BF   0782           00394                         addwf           PCL,F                           ;PCL = PCL + W
+                      00395                                                 ;' gfedcba'                     ;Posição correta dos seg
+                            mentos
+00C0   343F           00396                         retlw           B'00111111'                     ;Retorna símbolo '0'
+00C1   3406           00397                         retlw           B'00000110'                     ;Retorna símbolo '1' 
+00C2   345B           00398                         retlw           B'01011011'                     ;Retorna símbolo '2'
+00C3   344F           00399                         retlw           B'01001111'                     ;Retorna símbolo '3'
+00C4   3466           00400                         retlw           B'01100110'                     ;Retorna símbolo '4'
+00C5   346D           00401                         retlw           B'01101101'                     ;Retorna símbolo '5' 
+00C6   347D           00402                         retlw           B'01111101'                     ;Retorna símbolo '6' 
+00C7   3407           00403                         retlw           B'00000111'                     ;Retorna símbolo '7' 
+00C8   347F           00404                         retlw           B'01111111'                     ;Retorna símbolo '8'
+00C9   346F           00405                         retlw           B'01101111'                     ;Retorna símbolo '9' 
+                      00406  
+                      00407         
+                      00408 ;========================================================================================       
+                      00409 
+                      00410 
+                      00411 ; --- Fim do programa ---
+                      00412 
+                      00413         end                                                                             ; Final do progr
+                            ama
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ADCON0                            0000001F
+ADCON1                            0000009F
+ADCS0                             00000006
+ADCS1                             00000007
+ADCS2                             00000006
+ADDEN                             00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADRESH                            0000001E
+ADRESL                            0000009E
+AUX_H                             0000002B
+AUX_L                             0000002C
+AUX_TEMP                          0000002D
+BCLIE                             00000003
+BCLIF                             00000003
+BF                                00000000
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCP2CON                           0000001D
+CCP2IE                            00000000
+CCP2IF                            00000000
+CCP2M0                            00000000
+CCP2M1                            00000001
+CCP2M2                            00000002
+CCP2M3                            00000003
+CCP2X                             00000005
+CCP2Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CCPR2                             0000001B
+CCPR2H                            0000001C
+CCPR2L                            0000001B
+CEN_DISP                          00000035
+CHS0                              00000003
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 14
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CHS1                              00000004
+CHS2                              00000005
+CIS                               00000003
+CKE                               00000006
+CKP                               00000004
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000009C
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+CVR0                              00000000
+CVR1                              00000001
+CVR2                              00000002
+CVR3                              00000003
+CVRCON                            0000009D
+CVREN                             00000007
+CVROE                             00000006
+CVRR                              00000005
+D                                 00000005
+DATA_ADDRESS                      00000005
+DC                                00000001
+DEZ_A                             00000032
+DEZ_B                             00000033
+DEZ_DISP                          00000036
+DIV                               000000A6
+D_A                               00000005
+D_NOT_A                           00000005
+EEADR                             0000010D
+EEADRH                            0000010F
+EECON1                            0000018C
+EECON2                            0000018D
+EEDATA                            0000010C
+EEDATH                            0000010E
+EEIE                              00000004
+EEIF                              00000004
+EEPGD                             00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GCEN                              00000007
+GIE                               00000007
+GO                                00000002
+GO_DONE                           00000002
+GO_NOT_DONE                       00000002
+I2C_DATA                          00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+INDF                              00000000
+INTCON                            0000000B
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 15
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOCHK                             000000B1
+NOGO                              000000BA
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BO                            00000000
+NOT_BOR                           00000000
+NOT_DONE                          00000002
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_RBPU                          00000007
+NOT_RC8                           00000006
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+NOT_TX8                           00000006
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OERR                              00000001
+OPTION_REG                        00000081
+P                                 00000004
+PCFG0                             00000000
+PCFG1                             00000001
+PCFG2                             00000002
+PCFG3                             00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PEN                               00000002
+PIE1                              0000008C
+PIE2                              0000008D
+PIR1                              0000000C
+PIR2                              0000000D
+PORTA                             00000005
+PORTB                             00000006
+PORTC                             00000007
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RB0                               00000000
+RB1                               00000001
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 16
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RC8_9                             00000006
+RC9                               00000006
+RCD8                              00000000
+RCEN                              00000003
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+READ_WRITE                        00000002
+REG1H                             00000023
+REG1L                             00000024
+REG2H                             00000025
+REG2L                             00000026
+REG3H                             00000027
+REG3L                             00000028
+REG4H                             00000029
+REG4L                             0000002A
+REG_AUX                           00000030
+REG_MULT1                         0000002E
+REG_MULT2                         0000002F
+RP0                               00000005
+RP1                               00000006
+RSEN                              00000001
+RX9                               00000006
+RX9D                              00000000
+R_NOT_W                           00000002
+R_W                               00000002
+S                                 00000003
+SEN                               00000000
+SMP                               00000007
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+SSPADD                            00000093
+SSPBUF                            00000013
+SSPCON                            00000014
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 17
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+SSPCON2                           00000091
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPOV                             00000006
+SSPSTAT                           00000094
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1INSYNC                          00000002
+T1OSCEN                           00000003
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISB                             00000086
+TRISB0                            00000000
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 18
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRISC                             00000087
+TRISC0                            00000000
+TRISC1                            00000001
+TRISC2                            00000002
+TRISC3                            00000003
+TRISC4                            00000004
+TRISC5                            00000005
+TRISC6                            00000006
+TRISC7                            00000007
+TRMT                              00000001
+TX8_9                             00000006
+TX9                               00000006
+TX9D                              00000000
+TXD8                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+TXSTA                             00000098
+UA                                00000001
+UNI                               00000031
+UNI_DISP                          00000037
+W                                 00000000
+WCOL                              00000007
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_ALL                           00001FFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEBUG_OFF                        00003FFF
+_DEBUG_ON                         000037FF
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 19
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_WRT_1FOURTH                      00003BFF
+_WRT_256                          00003DFF
+_WRT_HALF                         000039FF
+_WRT_OFF                          00003FFF
+_XT_OSC                           00003FFD
+__16F876A                         00000001
+__DEBUG                           1
+adc                               00000022
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+configura_ADC                     00000058
+cont1                             00000023
+cont2                             000000A1
+conv_binToDec                     0000005F
+copy_cen                          00000010
+copy_dez                          00000018
+copy_uni                          00000020
+counter                           00000034
+digit1                            PORTB,3
+digit2                            PORTB,2
+digit3                            PORTB,1
+divid                             0000009C
+end_adj                           00000074
+espera_leitura                    00000046
+exit_ISR                          00000027
+incDezA                           00000073
+inicio                            0000002C
+loop                              00000045
+mult                              
+multip                            00000077
+send_disp                         000000BF
+start_adj                         00000066
+MPASM  5.51             VOLTIMETRODISPLAY.ASM   9-10-2020  16:23:41         PAGE 20
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00C0 : XXXXXXXXXX------ ---------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:   199
+Program Memory Words Free:  7993
+
+
+Errors   :     0
+Warnings :     2 reported,     0 suppressed
+Messages :     6 reported,     0 suppressed
+
+

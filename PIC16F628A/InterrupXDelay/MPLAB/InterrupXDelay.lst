@@ -1,0 +1,555 @@
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F628A              Clock = 4 MHz           Ciclo de máquina = 1us
+                      00003 ;
+                      00004 ;               Este programa tem a função de demonstrar a diferença entra interrupção por timers e dela
+                            y, e mostrar que a inter-
+                      00005 ;       rupção é uma forma muito melhor de se temporizar algo em um programa, por vários motivos. A inte
+                            rrupção não trava o 
+                      00006 ;       programa para temporizar e tem prioridade sobre outras execuções, fazendo com que sua rotina sej
+                            a executada assim que
+                      00007 ;       o timer temporizar o tempo programado.
+                      00008 ;
+                      00009 ;               Timer 0
+                      00010 ;
+                      00011 ;               Overflow = (256 - TMR0) * prescaler * ciclo de máquina
+                      00012 ;               Overflow = 250 * 4 * 1us
+                      00013 ;               Overflow = 1ms
+                      00014 ;               
+                      00015 ;               Para configurar a base de tempo foi utilizada a variável cont1 = 10 e cont2 = 50. Logo, 
+                            a base de tempo para 
+                      00016 ;       temporizar ficou com: overflow * cont1 * cont2 = 1ms * 10 * 50 = 500ms.
+                      00017 ;
+                      00018 ;               Na simulação o programa funcionou como esperado, demonstrando que a interrupção tem prio
+                            ridade sobre o delay e 
+                      00019 ;       demonstrando que o delay não temporiza de forma exata em determinadas situações.                
+                      00020 ;
+                      00021 
+                      00022         list            p=16f628a                                       ; Informa o microcontrolador uti
+                            lizado
+                      00023 
+                      00024 ; --- Inclusão de arquivos ---
+                      00025 
+                      00026         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00027         
+                      00028 ; --- Fuse bits ---
+                      00029 
+2007   3F21           00030         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00031         
+                      00032 ;       Clock de 4MHz, Power Up Time e Master Clear habilitados
+                      00033 
+                      00034 ; --- Paginação de memória ---
+                      00035 
+                      00036         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                             0 de memória
+                      00037         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00038         
+                      00039 ; --- Saídas ---
+                      00040 
+                      00041         #define         led1    PORTA,3                         ; Cria um mnemônico para led1 em RA3
+                      00042         #define         led2    PORTA,2                         ; Cria um mnemônico para led2 em RA2
+                      00043         
+                      00044 ; --- Entradas ---
+                      00045 
+                      00046         #define         botao1  PORTB,0                         ; Cria um mnemônico para botao1 em RB0
+                      00047         #define         botao2  PORTB,1                         ; Cria um mnemônico para botao2 em RB1
+                      00048         
+                      00049 ; --- Registadores de uso geral ---
+                      00050 
+                      00051         cblock          H'20'                                           ; Cria registradores de uso gera
+                            l a partir do endereço 20h de memória
+                      00052         
+  00000020            00053         W_TEMP                                                                  ; Armazena conteúdo de W
+                             temporariamente
+  00000021            00054         STATUS_TEMP                                                             ; Armazena conteúdo de S
+                            TATUS temporariamente
+  00000022            00055         cont1                                                                   ; Base de tempo para o t
+                            imer0
+  00000023            00056         cont2                                                                   ; Base de tempo para o t
+                            imer0
+  00000024            00057         tempo1                                                                  ; Tempo auxiliar para de
+                            lay
+  00000025            00058         tempo2                                                                  ; Tempo auxiliar para de
+                            lay
+                      00059         
+                      00060         endc
+                      00061 
+                      00062 ; --- Vetor de Reset ---
+                      00063 
+0000                  00064         org                     H'0000'                                         ; Origem do endereço do 
+                            vetor de Reset
+0000   281B           00065         goto            inicio                                          ; Desvia para label inicio
+                      00066         
+                      00067 ; --- Vetor de Interrupção
+0004                  00068         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Interrupção
+                      00069         
+                      00070 ; --- Salva contexto ---
+                      00071         
+0004   00A0           00072         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00073         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00074         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00075         movwf           STATUS_TEMP                                     ; STATUS_TEMP = w = STATUS (com 
+                            nibbles invertidos)
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00076         
+                      00077 ; --- Final do salvamento de contexto ---
+                      00078 
+0008   1D0B           00079         btfss           INTCON,T0IF                                     ; Testa se T0IF setou, se sim, p
+                            ula uma linha
+0009   2816           00080         goto            exit_ISR                                        ; Se não, saí da interrupção
+000A   110B           00081         bcf                     INTCON,T0IF                                     ; Limpa flag T0IF, para 
+                            uma nova interrupção
+000B   3006           00082         movlw           D'6'                                            ; w = D'10'
+000C   0081           00083         movwf           TMR0                                            ; Recarrega TMR0 com 10d
+                      00084         
+000D   0BA2           00085         decfsz          cont1,F                                         ; Decrementa cont1 e testa se ch
+                            egou a zero, se sim, pula uma linha
+000E   2816           00086         goto            exit_ISR                                        ; Se não, saí da interrupção
+                      00087         
+000F   300A           00088         movlw           D'10'                                           ; w = 10d
+0010   00A2           00089         movwf           cont1                                           ; Recarrega cont com 10d
+                      00090         
+0011   0BA3           00091         decfsz          cont2,F                                         ; Decrementa cont2 e testa se ch
+                            egou a zero, se sim, pula uma linha
+0012   2816           00092         goto            exit_ISR                                        ; Se não, saí da interrupção
+                      00093         
+0013   3032           00094         movlw           D'50'                                           ; w = 50d
+0014   00A3           00095         movwf           cont2                                           ; Recarrega cont2 com 50d       
+                      00096         
+Message[305]: Using default destination of 1 (file).
+0015   0985           00097         comf            PORTA                                           ; Complementa porta
+                      00098         
+                      00099 ; --- Recupera contexto ---
+                      00100 
+0016                  00101 exit_ISR:
+                      00102 
+0016   0E21           00103         swapf           STATUS_TEMP,w                           ; w = STATUS_TEMP (nibbles invertidos) =
+                             STATUS (original)
+0017   0083           00104         movwf           STATUS                                          ; STATUS = w = STATUS (original)
+0018   0EA0           00105         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+0019   0E20           00106         swapf           W_TEMP,w                                        ; w = W_TEMP = w (original)
+                      00107         
+001A   0009           00108         retfie
+                      00109         
+                      00110 ; --- Fim da interrupção
+                      00111         
+                      00112         
+001B                  00113 inicio:
+                      00114 
+001B   1283           00115         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+001C   3007           00116         movlw           H'07'                                           ; w = 07h
+001D   009F           00117         movwf           CMCON                                           ; CMCON = 07h, desabilita os com
+                            paradores internos
+001E   30A0           00118         movlw           H'A0'                                           ; w = 'A0'
+001F   008B           00119         movwf           INTCON                                          ; INTCON = A0h, habilita interru
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            pção global e desabilita a interrupção do timer0
+0020   1683           00120         bank1                                                                   ; Seleciona o banco 1 de
+                             memória
+0021   3081           00121         movlw           H'81'                                           ; w = 86h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0022   0081           00122         movwf           OPTION_REG                                      ; OPTION_REG = 86h, desabilita o
+                            s pull-ups internos, associa o prescaler do timer 0 e configura para 1:4
+0023   30F3           00123         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0024   0085           00124         movwf           TRISA                                           ; TRISA = F3h, configura RA3 e R
+                            A2 como saídas digital
+0025   30F3           00125         movlw           H'F3'                                           ; w = FFh
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0026   0086           00126         movwf           TRISB                                           ; TRISB = FFh, configura todo po
+                            rtb como entrada digital
+0027   1283           00127         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0028   3006           00128         movlw           D'6'                                            ; w = 10d
+0029   0081           00129         movwf           TMR0                                            ; TMR0 inicia sua contagem em 10
+                            d
+002A   1185           00130         bcf                     led1                                            ; Inicia led1 em Low
+002B   1505           00131         bsf                     led2                                            ; Inicia led2 em High
+002C   300A           00132         movlw           D'10'                                           ; w = 10d
+002D   00A2           00133         movwf           cont1                                           ; cont1 = 10d
+002E   3032           00134         movlw           D'50'                                           ; w = 50d
+002F   00A3           00135         movwf           cont2                                           ; cont2 = 50d
+0030   30F7           00136         movlw           B'11110111'                                     ; w = B'11110111'
+0031   0086           00137         movwf           PORTB                                           ; PORTB inicia com RB3 em Low e 
+                            RB4 em High
+                      00138         
+                      00139         
+0032                  00140 loop:                                                                           ; Cria loop infinito
+                      00141 
+Message[305]: Using default destination of 1 (file).
+0032   0986           00142         comf            PORTB                                           ; Complementa portb
+0033   2035           00143         call            delay500ms                                      ; Chama subrotina de delay
+                      00144 
+0034   2832           00145         goto            loop                                            ; Desvia para label loop        
+                      00146         
+                      00147         
+                      00148 ; --- Sub-rotinas ---
+                      00149         
+Warning[207]: Found label after column 1. (delay500ms)
+0035                  00150         delay500ms:     ; Cria a sub-rotina
+                      00151         
+0035   30C8           00152                 movlw   D'200' ; Move o valor 200 decimal para W
+0036   00A4           00153                 movwf   tempo1 ; Move o valor de W para o registrador de uso geral no endereço 0C
+                      00154                 
+Warning[207]: Found label after column 1. (aux1)
+0037                  00155                 aux1: ; Cria uma label auxiliar
+                      00156                 
+0037   30FA           00157                         movlw   D'250' ; Move o valor decimal 250 para W
+0038   00A5           00158                         movwf   tempo2 ; Move o valor de W para o registrado de uso geral no endereço 0D
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00159                         
+Warning[207]: Found label after column 1. (aux2)
+0039                  00160                 aux2: ; Cria outra label auxiliar
+                      00161                 
+0039   0000           00162                         nop
+003A   0000           00163                         nop
+003B   0000           00164                         nop
+003C   0000           00165                         nop
+003D   0000           00166                         nop
+003E   0000           00167                         nop
+003F   0000           00168                         nop ; Gasta 7 ciclo de máquina = 7us
+                      00169                         
+Message[305]: Using default destination of 1 (file).
+0040   0BA5           00170                         decfsz  tempo2 ; Decrementa o valor contido no endereço 0D e pula uma linha se o
+                             valor for zero
+0041   2839           00171                         goto    aux2 ; Desvia para a label aux2
+                      00172                         
+Message[305]: Using default destination of 1 (file).
+0042   0BA4           00173                         decfsz  tempo1 ; Decrementa o valor contido no endereço 0C e pula uma linha se o
+                             valor for zero
+0043   2837           00174                         goto    aux1 ; Desvia o programa para a label aux1
+                      00175                         
+0044   0008           00176                         return ; Retorna para o loop infinito
+                      00177                         
+                      00178         
+                      00179         
+Warning[205]: Found directive in column 1. (end)
+                      00180 end
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51                INTERRUPXDELAY.ASM   8-25-2020  23:03:35         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+aux1                              00000037
+aux2                              00000039
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,0
+botao2                            PORTB,1
+cont1                             00000022
+cont2                             00000023
+delay500ms                        00000035
+exit_ISR                          00000016
+inicio                            0000001B
+led1                              PORTA,3
+led2                              PORTA,2
+loop                              00000032
+tempo1                            00000024
+tempo2                            00000025
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXX----------- ---------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    66
+Program Memory Words Free:  1982
+
+
+Errors   :     0
+Warnings :     4 reported,     0 suppressed
+Messages :     7 reported,     0 suppressed
+
+

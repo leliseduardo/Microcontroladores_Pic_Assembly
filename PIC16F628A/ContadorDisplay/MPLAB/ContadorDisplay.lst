@@ -1,0 +1,726 @@
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;       *** Timer 0 ***
+                      00002 ;
+                      00003 ;       Overflow = (256 - TMR0) * prescaler * ciclo de máquina
+                      00004 ;       Overflow = 256 * 32 * 1us
+                      00005 ;       Overflow = 8,192ms 
+                      00006 ;
+                      00007 ;               Na prática o programa funcionou como esperado
+                      00008 ;
+                      00009 
+                      00010 
+                      00011         list            p=16f628a                                               ; Informa o microcontrol
+                            ador utilizado
+                      00012         
+                      00013 ; --- inclusões ---
+                      00014 
+                      00015         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00016         
+                      00017 ; --- Fuse bits ---
+                      00018 
+2007   3F21           00019         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00020         
+                      00021 ;       Configura clock de 4MHz, habilita o Power Up Timer e habilita o Master Clear
+                      00022 
+                      00023 ; --- Mapeamento de hardware ---
+                      00024 
+                      00025         #define         digDez  PORTA,3                         ; Cria mnemônico para digDez em RA3
+                      00026         #define         digUni  PORTA,2                         ; Cria mnemônico para digUni em RA2
+                      00027         #define         botao1  PORTA,0                         ; Cria mnemônico para botao1 em RA0
+                      00028         #define         botao2  PORTA,1                         ; Cria mnemônico para botao2 em RA1
+                      00029 
+                      00030 ; --- Paginação de memória ---
+                      00031 
+                      00032         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00033         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00034         
+                      00035 ; --- Registradores de uso geral ---
+                      00036 
+                      00037         cblock          H'20'                                           ; Início do endereço para config
+                            uração dos registradores de uso geral
+                      00038         
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+  00000020            00039         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00040         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+                      00041         
+  00000022            00042         flags                                                                   ; Flags para testar boto
+                            es
+                      00043         
+  00000023            00044         bouncingB1a                                                             ; Anti bouncing botao 1
+  00000024            00045         bouncingB1b                                                             ; Anti bouncing botao 1 
+  00000025            00046         bouncingB2a                                                             ; Anti bouncing botao 2
+  00000026            00047         bouncingB2b                                                             ; Anti bouncing botao 2
+                      00048         
+  00000027            00049         dez                                                                             ; Dezena do disp
+                            lay
+  00000028            00050         uni                                                                             ; Unidade do dis
+                            play
+                      00051         
+                      00052         endc                                                                    ; Fim da configuração do
+                            s registradores de uso geral
+                      00053         
+                      00054         #define         flagB1  flags,0                         ; Cria mnemônico para flag de teste do b
+                            otao1
+                      00055         #define         flagB2  flags,1                         ; Cria mnemônico para flag de teste do b
+                            otao2
+                      00056         
+                      00057 ; --- Vetor de Reset ---
+                      00058 
+0000                  00059         org                     H'0000'                                         ; Origem do endereço do 
+                            vetor de Reset
+                      00060         
+0000   2820           00061         goto            inicio                                          ; Desvia para label inicio, prog
+                            rama principal
+                      00062         
+                      00063 ; Vetor de Interrupção
+                      00064 
+0004                  00065         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Reset
+                      00066         
+                      00067 ; -- Salvamento de contexto --
+                      00068 
+0004   00A0           00069         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00070         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00071         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00072         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00073         
+                      00074 ; -- Fim do salvamento de contexto --
+                      00075 
+                      00076         ; Desenvolvimento da ISR...
+                      00077 
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0008   1D0B           00078         btfss           INTCON,T0IF                                     ; Testa se a flag T0IF setou, se
+                             sim, pula uma linha
+0009   281B           00079         goto            exit_ISR                                        ; Se não, sai da interrupção
+000A   110B           00080         bcf                     INTCON,T0IF                                     ; Limpa a flag T0IF
+                      00081         
+000B   1D85           00082         btfss           digDez                                          ; Testa se o o display das dezen
+                            as está ligado, se estiver, pula uma linha
+000C   2811           00083         goto            apaga_digUni                            ; Se não estiver, desvia para label apag
+                            a_digUni
+000D   1185           00084         bcf                     digDez                                          ; Desliga display das de
+                            zenas
+000E   0186           00085         clrf            PORTB                                           ; Limpa PORTB
+000F   1505           00086         bsf                     digUni                                          ; Liga display das unida
+                            de
+0010   2818           00087         goto            imprime                                         ; Desvia para label imprime
+                      00088         
+0011                  00089 apaga_digUni:
+                      00090         
+0011   1105           00091         bcf                     digUni                                          ; Desliga display das un
+                            idades
+0012   0186           00092         clrf            PORTB                                           ; Limpa PORTB
+0013   1585           00093         bsf             digDez                                          ; Liga display das dezenas
+0014   0827           00094         movf            dez,w                                           ; w = dez
+0015   2081           00095         call            display                                         ; Desvia para subrotina display
+0016   0086           00096         movwf           PORTB                                           ; PORTB = w, imprime no display 
+                            o valor retornado pela subrotina display
+0017   281B           00097         goto            exit_ISR                                        ; Sai da interrupção
+                      00098 
+0018                  00099 imprime:
+                      00100 
+0018   0828           00101         movf            uni,w                                           ; w = uni
+0019   2081           00102         call            display                                         ; Desvia para subrotina display
+001A   0086           00103         movwf           PORTB                                           ; PORTB = w, imprime no display 
+                            o valor retornado pela subrotina display
+                      00104         
+                      00105 ; -- Recuperação de contexto --
+                      00106 
+001B                  00107 exit_ISR:
+                      00108 
+001B   0E21           00109         swapf           STATUS_TEMP,w                           ; w = STATUS (com nibbles reinvertidos, 
+                            isto é, STATUS original)
+001C   0083           00110         movwf           STATUS                                          ; STATUS = STATUS (original)
+001D   0EA0           00111         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+001E   0E20           00112         swapf           W_TEMP,w                                        ; w = W_TEMP (com nibbles reinve
+                            rtidos, isto é, w original)
+                      00113         
+001F   0009           00114         retfie                                                                  ; Retorna para execução 
+                            principal
+                      00115         
+                      00116 ; -- Fim da recuperação de contexto -- 
+                      00117 
+                      00118 
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00119 ; --- Programa principal ---
+                      00120 
+0020                  00121 inicio:
+                      00122 
+0020   1683           00123         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0021   30F3           00124         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0022   0085           00125         movwf           TRISA                                           ; Configura apenas RA3 e RA2 com
+                            o saídas digitais
+0023   3010           00126         movlw           H'10'                                           ; w = 10h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0024   0086           00127         movwf           TRISB                                           ; Configura todo portb como saíd
+                            a digital, exceto RB4
+0025   3084           00128         movlw           H'84'                                           ; w = 84h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0026   0081           00129         movwf           OPTION_REG                                      ; Timer0 incrementa pelo ciclo d
+                            e máquina e prescaler em 1:32
+0027   1283           00130         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0028   3007           00131         movlw           H'07'                                           ; w = 07h
+0029   009F           00132         movwf           CMCON                                           ; Desabilita os comparadores int
+                            ernos
+002A   30A0           00133         movlw           H'A0'                                           ; w = C0h
+002B   008B           00134         movwf           INTCON                                          ; Habilita a interrupção global 
+                            e a interrupção do timer0
+002C   3021           00135         movlw           H'21'                                           ; w = 21h
+                      00136 
+002D   01A2           00137         clrf            flags                                           ; Limpa flags
+002E   01A7           00138         clrf            dez                                                     ; Limpa dez
+002F   01A8           00139         clrf            uni                                                     ; Limpa uni
+0030   30FF           00140         movlw           H'FF'                                           ; w = FFh
+0031   00A3           00141         movwf           bouncingB1a                                     ; bouncingB1a = FFh
+0032   3008           00142         movlw           H'08'                                           ; w = 08h
+0033   00A4           00143         movwf           bouncingB1b                                     ; bouncingB1b = 08h
+0034   30FF           00144         movlw           H'FF'                                           ; w = FFh
+0035   00A5           00145         movwf           bouncingB2a                                     ; bouncingB1a = FFh
+0036   3008           00146         movlw           H'08'                                           ; w = 08h
+0037   00A6           00147         movwf           bouncingB2b                                     ; bouncingB1b = 08h  
+                      00148         
+                      00149 ; --- Loop infinito ---
+                      00150 
+0038                  00151 loop:                                                                           ; Cria loop infinito
+                      00152                 
+0038   203B           00153         call            press_B1                                        ; Desvia para subrotina press_B1
+0039   205D           00154         call            press_B2                                        ; Desvia para subrotina press_B2
+                      00155         
+003A   2838           00156         goto            loop                                            ; Desvia para loop infinito
+                      00157         
+                      00158 ; --- Sub Rotinas ---
+                      00159 
+                      00160 ; ***** Botao 1 *****
+                      00161 
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+003B                  00162 press_B1:
+                      00163         
+003B   1C22           00164         btfss           flagB1                                          ; Testa se flagB1 está setada, s
+                            e estiver, pula uma linha
+003C   2840           00165         goto            testa_B1                                        ; Se não estiver, desvia para la
+                            bel testa_B1
+003D   1C05           00166         btfss           botao1                                          ; Testa se botao1 está solto, se
+                             estiver, pula uma linha
+003E   0008           00167         return                                                                  ; Se estiver pressionado
+                            , retorna para loop infinito
+003F   1022           00168         bcf                     flagB1                                          ; Limpa flagB1
+                      00169 
+0040                  00170 testa_B1:
+                      00171 
+0040   1805           00172         btfsc           botao1                                          ; Testa se botao1 está pressiona
+                            do, se estiver, pula uma linha
+0041   2858           00173         goto            recarrega_B1                            ; Se não estiver, desvia para recarrega_
+                            B1
+0042   0BA3           00174         decfsz          bouncingB1a,F                           ; Decrementa bouncingB1a e testa se cheg
+                            ou a zero, se chegou, pula uma linha
+0043   0008           00175         return                                                                  ; Se não chegou, retorna
+0044   30FF           00176         movlw           H'FF'                                           ; w = FFh
+0045   00A3           00177         movwf           bouncingB1a                                     ; bouncingB1a = FFh
+0046   0BA4           00178         decfsz          bouncingB1b,F                           ; Decrementa bouncingB1b e testa se cheg
+                            ou a zero, se chegou, pula uma linha
+0047   0008           00179         return                                                                  ; Se não chegou, retorna
+0048   3008           00180         movlw           H'08'                                           ; w = 08h
+0049   00A4           00181         movwf           bouncingB1b                                     ; bouncingB1b = 08h
+004A   1422           00182         bsf                     flagB1                                          ; Seta flagB1
+004B   0AA8           00183         incf            uni,F                                           ; Incrementa uni
+004C   300A           00184         movlw           H'0A'                                           ; w = 0Ah
+004D   0628           00185         xorwf           uni,w                                           ; Faz XOR entre w e uni, para te
+                            star se uni chegou a 0Ah
+004E   1D03           00186         btfss           STATUS,Z                                        ; Se chegou, Z seta para 1 e pul
+                            a uma linha
+004F   0008           00187         return                                                                  ; Se não chegou, retorna
+0050   01A8           00188         clrf            uni                                                     ; Zera uni
+0051   0AA7           00189         incf            dez,F                                           ; Incrementa dez 
+0052   300A           00190         movlw           H'0A'                                           ; w = 0Ah
+0053   0627           00191         xorwf           dez,w                                           ; Faz XOR entre w e dez, para te
+                            star se dez chegou a 0A
+0054   1D03           00192         btfss           STATUS,Z                                        ; Se chegou, seta Z e pula uma l
+                            inha
+0055   0008           00193         return                                                                  ; Se não chegou, retorna
+0056   01A7           00194         clrf            dez                                                     ; Zera dez
+0057   0008           00195         return                                                                  ; Retorna
+                      00196 
+0058                  00197 recarrega_B1:
+                      00198 
+0058   30FF           00199         movlw           H'FF'                                           ; w = FFh
+0059   00A3           00200         movwf           bouncingB1a                                     ; bouncingB1a = FFh
+005A   3008           00201         movlw           H'08'                                           ; w = 08h
+005B   00A4           00202         movwf           bouncingB1b                                     ; bouncingB1b = 08h
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+005C   0008           00203         return                                                                  ; Retorna 
+                      00204 
+                      00205 ; ***** Botao 2 *****
+                      00206 
+005D                  00207 press_B2:
+                      00208 
+005D   1CA2           00209         btfss           flagB2                                          ; Testa se flagB2 está setada, s
+                            e estiver, pula uma linha
+005E   2862           00210         goto            testa_B2                                        ; Se não estiver, desvia para te
+                            sta_B2
+005F   1C85           00211         btfss           botao2                                          ; Testa se botao2 está solto, se
+                             estiver, pula uma linha
+0060   0008           00212         return                                                                  ; Se não estiver, retorn
+                            a
+0061   10A2           00213         bcf                     flagB2                                          ; Limpa flagB2
+                      00214 
+0062                  00215 testa_B2:
+                      00216 
+0062   1885           00217         btfsc           botao2                                          ; Testa se botao2 está pressiona
+                            do, se estiver, pula uma linha
+0063   287C           00218         goto            recarrega_B2                            ; Se não estiver, desvia para recarrega_
+                            B2
+0064   0BA5           00219         decfsz          bouncingB2a,F                           ; Decrementa bouncingB2a e testa se cheg
+                            ou a zero, se chegou, pula uma linha
+0065   0008           00220         return                                                                  ; Se não chegou, retorna
+0066   30FF           00221         movlw           H'FF'                                           ; w = FFh
+0067   00A5           00222         movwf           bouncingB2a                                     ; bouncingB2a = FFh
+0068   0BA6           00223         decfsz          bouncingB2b,F                                   ; Decrementa bouncingB2b e testa
+                             se chegou a zero, se chegou, pula uma linha
+0069   0008           00224         return                                                                  ; Se não chegou, retorna
+006A   3008           00225         movlw           H'08'                                           ; w = 08h       
+006B   00A6           00226         movwf           bouncingB2b                                     ; bouncingB2b = 08h
+006C   14A2           00227         bsf                     flagB2                                          ; Seta flagB2
+006D   03A8           00228         decf            uni,F                                           ; Decrementa uni
+006E   30FF           00229         movlw           H'FF'                                           ; w = FFh
+006F   0628           00230         xorwf           uni,w                                           ; Faz XOR entre w e uni, para te
+                            star se uni chegou até FFh
+0070   1D03           00231         btfss           STATUS,Z                                        ; Se chegou, seta a flag Z e pul
+                            a uma linha
+0071   0008           00232         return                                                                  ; Se não chegou, retorna
+0072   3009           00233         movlw           H'09'                                           ; w = 09h
+0073   00A8           00234         movwf           uni                                                     ; uni = 09h
+0074   03A7           00235         decf            dez,F                                           ; Decrementa dez
+0075   30FF           00236         movlw           H'FF'                                           ; w = FFh
+0076   0627           00237         xorwf           dez,w                                           ; Faz XOR entre w e dez, para te
+                            star se dez chegou a FFh
+0077   1D03           00238         btfss           STATUS,Z                                        ; Se chegou, seta a flag Z e pul
+                            a uma linha
+0078   0008           00239         return                                                                  ; Se não chegou, retorna
+0079   3009           00240         movlw           H'09'                                           ; w = 09h
+007A   00A7           00241         movwf           dez                                                     ; dez = 09h
+007B   0008           00242         return
+                      00243         
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+007C                  00244 recarrega_B2:
+                      00245 
+007C   30FF           00246         movlw           H'FF'                                           ; w = FFh
+007D   00A5           00247         movwf           bouncingB2a                                     ; bouncingB1a = FFh
+007E   3008           00248         movlw           H'08'                                           ; w = 08h
+007F   00A6           00249         movwf           bouncingB2b                                     ; bouncingB1b = 08h
+0080   0008           00250         return  
+                      00251 
+                      00252 ; ***** Display ****
+                      00253 
+0081                  00254 display:
+                      00255 
+0081   0782           00256         addwf           PCL,F                                           ; Adiciona em PCL o valor de 0 a
+                             Fh do nibble menos sig. de disp, fazendo com
+                      00257                                                                                         ; que haja um de
+                            svio condicional para "disp" comandos a frente
+                      00258         
+                      00259         ; Display         EDC.BAFG
+                      00260                 
+0082   34EE           00261         retlw           B'11101110'                                     ; Retorna o valor binário que es
+                            creve 0 para a subrotina adiciona
+0083   3428           00262         retlw           B'00101000'                                     ; Retorna o valor binário que es
+                            creve 1 para a subrotina adiciona
+0084   34CD           00263         retlw           B'11001101'                                     ; Retorna o valor binário que es
+                            creve 2 para a subrotina adiciona
+0085   346D           00264         retlw           B'01101101'                                     ; Retorna o valor binário que es
+                            creve 3 para a subrotina adiciona
+0086   342B           00265         retlw           B'00101011'                                     ; Retorna o valor binário que es
+                            creve 4 para a subrotina adiciona
+0087   3467           00266         retlw           B'01100111'                                     ; Retorna o valor binário que es
+                            creve 5 para a subrotina adiciona
+0088   34E7           00267         retlw           B'11100111'                                     ; Retorna o valor binário que es
+                            creve 6 para a subrotina adiciona
+0089   342C           00268         retlw           B'00101100'                                     ; Retorna o valor binário que es
+                            creve 7 para a subrotina adiciona
+008A   34EF           00269         retlw           B'11101111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+008B   346F           00270         retlw           B'01101111'                                     ; Retorna o valor binário que es
+                            creve 9 para a subrotina adiciona
+008C   34AF           00271         retlw           B'10101111'                                     ; Retorna o valor binário que es
+                            creve A para a subrotina adiciona
+008D   34E3           00272         retlw           B'11100011'                                     ; Retorna o valor binário que es
+                            creve b para a subrotina adiciona
+008E   34C6           00273         retlw           B'11000110'                                     ; Retorna o valor binário que es
+                            creve C para a subrotina adiciona
+008F   34E9           00274         retlw           B'11101001'                                     ; Retorna o valor binário que es
+                            creve d para a subrotina adiciona
+0090   34C7           00275         retlw           B'11000111'                                     ; Retorna o valor binário que es
+                            creve E para a subrotina adiciona
+0091   3487           00276         retlw           B'10000111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+                      00277         
+                      00278 
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00279         
+                      00280         
+                      00281         end                                                                             ; Fim do program
+                            a
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE 12
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+apaga_digUni                      00000011
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTA,0
+botao2                            PORTA,1
+bouncingB1a                       00000023
+bouncingB1b                       00000024
+bouncingB2a                       00000025
+bouncingB2b                       00000026
+dez                               00000027
+digDez                            PORTA,3
+digUni                            PORTA,2
+display                           00000081
+exit_ISR                          0000001B
+flagB1                            flags,0
+flagB2                            flags,1
+flags                             00000022
+imprime                           00000018
+inicio                            00000020
+loop                              00000038
+press_B1                          0000003B
+press_B2                          0000005D
+recarrega_B1                      00000058
+recarrega_B2                      0000007C
+testa_B1                          00000040
+testa_B2                          00000062
+uni                               00000028
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XX-------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:   143
+Program Memory Words Free:  1905
+
+
+MPASM  5.51               CONTADORDISPLAY.ASM   9-2-2020  9:47:25         PAGE 14
+
+
+
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     3 reported,     0 suppressed
+
+

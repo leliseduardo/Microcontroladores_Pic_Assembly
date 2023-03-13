@@ -1,0 +1,905 @@
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é demonstrar no display a atualização de um registrador, que i
+                            rá contar de 0 a 255 e
+                      00003 ;       recomeçar a contagem. Esta demonstração visa criar um projeto base para a demonstração de regist
+                            radores no LCD.
+                      00004 ;               Este projeto foi copiado do código demonstrado na aula, mas foi completamente compreendi
+                            do.
+                      00005 ;
+                      00006 ;               Na simulação e na prática o circuito e o programa funcionaram perfeitamente.
+                      00007 ;
+                      00008 
+                      00009 
+                      00010 ;========================================================================================
+                      00011 ; --- Listagem do Processador Utilizado ---
+                      00012                 list    p=16f876a                                       ;utilizado PIC16F876A
+                      00013                 
+                      00014                 
+                      00015 ;========================================================================================
+                      00016 ; --- Opção Geral ---
+                      00017                 radix   dec                                                     ;utilizar notação decima
+                            l, quando não dito o contrário
+                      00018                 
+                      00019                 
+                      00020 ;========================================================================================
+                      00021 ; --- Arquivos Inclusos no Projeto ---
+                      00022                 include <P16F876A.inc>
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F876A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00524         LIST
+                      00023                 
+                      00024                 
+                      00025 ;========================================================================================
+                      00026 ; --- FUSE Bits ---
+                      00027 ; - Cristal de 4MHz
+                      00028 ; - Desabilitamos o Watch Dog Timer
+                      00029 ; - Habilita o Power Up Timer
+                      00030 ; - Brown Out desabilitado
+                      00031 ; - Sem programação em baixa tensão, sem proteção de código, sem proteção da memória EEPROM
+2007   3F39           00032         __config _XT_OSC & _WDT_OFF & _PWRTE_OFF & _CP_OFF & _LVP_OFF & _BODEN_OFF
+                      00033         
+                      00034         
+                      00035 ;========================================================================================
+                      00036 ; --- Paginação de Memória ---
+                      00037         #define         bank0   bcf     STATUS,RP0              ;Cria um mnemônico para selecionar o ban
+                            co 0 de memória
+                      00038         #define         bank1   bsf     STATUS,RP0              ;Cria um mnemônico para selecionar o ban
+                            co 1 de memória
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00039         
+                      00040 
+                      00041 ;========================================================================================
+                      00042 ; --- Mapeamento de Hardware ---
+                      00043         #define         LCD_DATA        PORTB                   ;dados LCD
+                      00044         #define         RS                      PORTA,1                 ;register select LCD
+                      00045         #define         RW                      PORTA,2                 ;read/write LCD
+                      00046         #define         EN                      PORTA,3                 ;enable LCD
+                      00047         
+                      00048         
+                      00049         
+                      00050 ;========================================================================================
+                      00051 ; --- Registradores de Uso Geral ---
+                      00052         cblock          H'20'                                           ;Início da memória disponível pa
+                            ra o usuário
+                      00053 
+                      00054         
+  00000020            00055         W_TEMP                                                                  ;Registrador para armaze
+                            nar o conteúdo temporário de work
+  00000021            00056         STATUS_TEMP                                                             ;Registrador para armaze
+                            nar o conteúdo temporário de STATUS
+  00000022            00057         cmd                                                                             ;Registrador par
+                            a comandos do LCD
+  00000023            00058         T0                                                                              ;Registrador aux
+                            iliar para temporização
+  00000024            00059         T1                                                                              ;Registrador aux
+                            iliar para temporização 
+  00000025            00060         REG_AUX                                                                 ;Registrador auxiliar pa
+                            ra uso na conversão bin/dec
+  00000026            00061         UNI                                                                             ;Armazena unidad
+                            e
+  00000027            00062         DEZ                                                                             ;Armazena dezena
+  00000028            00063         CEN                                                                             ;Armazena centen
+                            a
+  00000029            00064         DISP                                                                    ;Registrador a ser exibi
+                            do no display
+                      00065 
+                      00066  
+                      00067         endc                                                                    ;Final da memória do usu
+                            ário
+                      00068         
+                      00069         
+                      00070 ;========================================================================================
+                      00071 ; --- Vetor de RESET ---
+0000                  00072         org                     H'0000'                                         ;Origem no endereço 00h 
+                            de memória
+0000   280D           00073         goto            inicio                                          ;Desvia para a label início
+                      00074         
+                      00075         
+                      00076 ;========================================================================================
+                      00077 ; --- Vetor de Interrupção ---
+0004                  00078         org                     H'0004'                                         ;As interrupções deste p
+                            rocessador apontam para este endereço
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00079         
+                      00080 ; -- Salva Contexto --
+0004   00A0           00081         movwf           W_TEMP                                          ;Copia o conteúdo de Work para W
+                            _TEMP
+0005   0E03           00082         swapf           STATUS,W                                        ;Move o conteúdo de STATUS com o
+                            s nibbles invertidos para Work
+0006   1283           00083         bank0                                                                   ;Seleciona o banco 0 de 
+                            memória (padrão do RESET) 
+0007   00A1           00084         movwf           STATUS_TEMP                                     ;Copia o conteúdo de STATUS com 
+                            os nibbles invertidos para STATUS_TEMP
+                      00085 ; -- Final do Salvamento de Contexto --
+                      00086 
+                      00087 
+                      00088  
+                      00089 ; -- Recupera Contexto (Saída da Interrupção) --
+0008                  00090 exit_ISR:
+                      00091 
+0008   0E21           00092         swapf           STATUS_TEMP,W                           ;Copia em Work o conteúdo de STATUS_TEMP
+                             com os nibbles invertidos
+0009   0083           00093         movwf           STATUS                                          ;Recupera o conteúdo de STATUS
+000A   0EA0           00094         swapf           W_TEMP,F                                        ;W_TEMP = W_TEMP com os nibbles 
+                            invertidos 
+000B   0E20           00095         swapf           W_TEMP,W                                        ;Recupera o conteúdo de Work
+                      00096         
+000C   0009           00097         retfie                                                                  ;Retorna da interrupção
+                      00098         
+                      00099         
+                      00100 ;========================================================================================       
+                      00101 ; --- Principal ---
+000D                  00102 inicio:
+                      00103         
+000D   1683           00104         bank1                                                                   ;seleciona o banco1 de m
+                            emória
+000E   300E           00105         movlw           H'0E'                                           ;move literal 0Eh para Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000F   009F           00106         movwf           ADCON1                                          ;apenas AN0 como analógico, just
+                            ificado à esquerda
+0010   3031           00107         movlw           H'31'                                           ;move literal 31h para Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0011   0085           00108         movwf           TRISA                                           ;configura RA1, RA2 e RA3 como s
+                            aída
+0012   3000           00109         movlw           H'00'                                           ;move literal 00h para Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0013   0086           00110         movwf           TRISB                                           ;configura PORTB como saída
+                      00111                 
+0014   1283           00112         bank0                                                                   ;seleciona o banco0 de m
+                            emória
+0015   0185           00113         clrf            PORTA                                           ;limpa PORTA
+0016   0186           00114         clrf            PORTB                                           ;limpa PORTB
+0017   3007           00115         movlw           H'07'                                           ;move literal 07h para work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0018   009C           00116         movwf           CMCON                                           ;desabilita comparadores
+0019   01A9           00117         clrf            DISP                                            ;limpa registrador DISP
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00118         
+001A   2079           00119         call            _500ms                                          ;aguarda 500ms
+001B   2055           00120         call            lcd_init                                        ;inicializa LCD
+001C   202D           00121         call            lcd_hello                                       ;chama sub rotina para enviar me
+                            nsagem para LCD 
+                      00122 
+                      00123         
+                      00124  
+                      00125         
+                      00126         
+                      00127 ;========================================================================================       
+                      00128 ; --- Loop Infinito ---
+001D                  00129 loop:
+                      00130 
+001D   0829           00131         movf            DISP,W                                          ;move conteúdo de DISP para work
+001E   2089           00132         call            conv_binToDec                           ;chama sub rotina para ajuste decimal
+001F   30C7           00133         movlw           H'C7'                                           ;posiciona cursor na linha 2, co
+                            luna 6
+0020   205E           00134         call            lcd_command                                     ;envia comando para LCD
+0021   0828           00135         movf            CEN,W                                           ;move conteúdo de CEN para work
+0022   3E30           00136         addlw           H'30'                                           ;soma com 30h (ASCII)
+0023   204C           00137         call            lcd_char                                        ;envia para LCD
+0024   0827           00138         movf            DEZ,W                                           ;move conteúdo de DEZ para work
+0025   3E30           00139         addlw           H'30'                                           ;soma com 30h (ASCII)
+0026   204C           00140         call            lcd_char                                        ;envia para LCD
+0027   0826           00141         movf            UNI,W                                           ;move conteúdo de UNI para work
+0028   3E30           00142         addlw           H'30'                                           ;soma com 30h (ASCII)
+0029   204C           00143         call            lcd_char                                        ;envia para LCD
+002A   0AA9           00144         incf            DISP,F                                          ;incrementa conteúdo de DISP
+002B   2079           00145         call            _500ms                                          ;aguarda 500ms
+                      00146 
+002C   281D           00147         goto            loop                                            ;desvia de volta para label loop
+                      00148         
+                      00149         
+                      00150 ;========================================================================================       
+                      00151 ; --- Desenvolvimento das Sub Rotinas ---
+                      00152 
+                      00153 
+                      00154 ;========================================================================================
+                      00155 ; --- Sub Rotina para enviar mensagem para o LCD ---
+002D                  00156 lcd_hello:
+002D   3020           00157         movlw           ' '                                                     ;move caractere para wor
+                            k
+002E   204C           00158     call        lcd_char                                        ;envia caractere para o LCD
+002F   3048           00159         movlw           'H'                                                     ;move caractere para wor
+                            k
+0030   204C           00160     call        lcd_char                                        ;envia caractere para o LCD
+0031   3065           00161         movlw           'e'                                                     ;move caractere para wor
+                            k
+0032   204C           00162     call        lcd_char                                        ;envia caractere para o LCD
+0033   306C           00163     movlw       'l'                                                     ;move caractere para work
+0034   204C           00164     call        lcd_char                                        ;envia caractere para o LCD
+0035   306C           00165     movlw       'l'                                                     ;move caractere para work
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0036   204C           00166     call        lcd_char                                        ;envia caractere para o LCD
+0037   306F           00167     movlw               'o'                                                     ;move caractere para wor
+                            k
+0038   204C           00168     call        lcd_char                                        ;envia caractere para o LCD
+0039   3020           00169     movlw       ' '                                                     ;move caractere para work
+003A   204C           00170     call        lcd_char                                        ;envia caractere para o LCD
+003B   3057           00171     movlw       'W'                                                     ;move caractere para work
+003C   204C           00172     call        lcd_char                                        ;envia caractere para o LCD
+003D   306F           00173     movlw       'o'                                                     ;move caractere para work
+003E   204C           00174     call        lcd_char                                        ;envia caractere para o LCD
+003F   3072           00175     movlw       'r'                                                     ;move caractere para work
+0040   204C           00176     call        lcd_char                                        ;envia caractere para o LCD
+0041   306C           00177     movlw       'l'                                                     ;move caractere para work
+0042   204C           00178     call        lcd_char                                        ;envia caractere para o LCD
+0043   3064           00179     movlw       'd'                                                     ;move caractere para work
+0044   204C           00180     call                lcd_char                                        ;envia caractere para o LCD
+0045   3020           00181     movlw       ' '                                                     ;move caractere para work
+0046   204C           00182     call        lcd_char                                        ;envia caractere para o LCD
+0047   3020           00183         movlw           ' '                                                     ;move caractere para wor
+                            k
+0048   204C           00184     call        lcd_char                                        ;envia caractere para o LCD
+0049   3020           00185         movlw           ' '                                                     ;move caractere para wor
+                            k
+004A   204C           00186     call        lcd_char                                        ;envia caractere para o LCD
+                      00187 ;       movlw           H'C0'                                           ;instrução para mudar de linha
+                      00188 ;       call            lcd_command                             ;envia comando para o LCD
+                      00189 
+004B   3400           00190     retlw       H'00'                                           ;retorna limpando work
+                      00191               
+                      00192 
+                      00193 ;========================================================================================
+                      00194 ; --- Sub Rotina para enviar um caractere para o LCD ---
+004C                  00195 lcd_char:
+004C   00A2           00196         movwf           cmd                                     ;move conteúdo de work para cmd
+004D   2067           00197     call        BUSY_CHECK                              ;aguarda LCD ficar pronto
+004E   1105           00198     bcf         RW                                              ;LCD em modo leitura
+004F   1485           00199     bsf         RS                                              ;LCD em modo comando
+0050   1585           00200     bsf         EN                                              ;habilita LCD
+0051   0822           00201     movf        cmd,W                                   ;move conteúdo de cmd para work
+0052   0086           00202     movwf       LCD_DATA                                ;envia dado para o LCD
+0053   1185           00203     bcf         EN                                                      ;desabilita o LCD
+0054   3400           00204     retlw       H'00'                                           ;retorna limpando work
+                      00205     
+                      00206     
+                      00207 ;========================================================================================
+                      00208 ; --- Sub Rotina para Inicializar LCD ---
+0055                  00209 lcd_init:
+                      00210 
+0055   3038           00211         movlw           H'38'                                   ;move literal 38h para work
+0056   205E           00212     call        lcd_command                                     ;envia comando para LCD modo 8 bits
+                      00213                                                                                 ;LCD com 2 linhas
+                      00214                                                                                 ;Resolução dos caractere
+                            s: 5x7 pontos
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00215 
+0057   300C           00216     movlw       H'0C'                                   ;move literal 0Fh para work
+0058   205E           00217     call        lcd_command                             ;liga Display
+                      00218                                                                                 ;liga Cursor
+                      00219                                                                                 ;habilita modo Blink
+                      00220 
+0059   3006           00221     movlw       H'06'                                   ;move literal 06h para work
+005A   205E           00222     call        lcd_command                             ;incremento do display/deslocamento do cursor
+                      00223 
+005B   3001           00224     movlw       H'01'                                   ;move literal 01h para work
+005C   205E           00225     call        lcd_command                             ;limpa display
+                      00226     
+005D   3400           00227     retlw       H'00'                                   ;retorna limpando work
+                      00228     
+                      00229     
+                      00230 ;========================================================================================
+                      00231 ; --- Sub Rotina para envio de Comandos LCD ---
+005E                  00232 lcd_command:
+005E   00A2           00233     movwf       cmd                                     ;move o conteúdo de work para cmd
+005F   2067           00234     call        BUSY_CHECK                              ;aguarda LCD ficar pronto
+0060   1105           00235         bcf             RW                                              ;LCD em modo leitura
+0061   1085           00236     bcf         RS                                              ;LCD em modo comando
+0062   1585           00237         bsf             EN                                              ;habilita LCD
+0063   0822           00238     movf        cmd,W                                   ;move conteúdo de cmd para work
+0064   0086           00239     movwf       LCD_DATA                                ;envia dado para o LCD
+0065   1185           00240     bcf         EN                                                      ;desabilita LCD
+0066   3400           00241     retlw       H'00'                                           ;retorna limpando work
+                      00242 
+                      00243 
+                      00244 ;========================================================================================
+                      00245 ; --- Sub Rotina para checar a Busy Flag ---
+0067                  00246 BUSY_CHECK:
+0067   1683           00247         bank1                                                           ;Seleciona banco 1 de memória
+0068   30FF           00248     movlw       H'FF'                                   ;move literal FFh para work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0069   0086           00249     movwf       TRISB                                           ;configura todo PORTB como entrada
+006A   1283           00250     bank0                                                               ;Seleciona banco 0 de memória
+006B   1085           00251     bcf         RS                                              ;LCD em modo comando
+006C   1505           00252     bsf         RW                                              ;LCD em modo escrita
+006D   1585           00253     bsf         EN                                              ;habilita LCD
+006E   0806           00254     movf        LCD_DATA,W                              ;le o busy flag, endereco DDram 
+006F   1185           00255     bcf         EN                                              ;desabilita LCD
+0070   3980           00256     andlw       H'80'                                           ;Limpa bits não utilizados
+0071   1D03           00257         btfss           STATUS, Z                                       ;chegou em zero?
+0072   2867           00258     goto        BUSY_CHECK                                      ;não, continua teste
+                      00259     
+0073                  00260 lcdnobusy:                                                                      ;sim
+0073   1105           00261     bcf         RW                                              ;LCD em modo leitura     
+0074   1683           00262     bank1                                                               ;Seleciona banco 1 de memória
+0075   3000           00263     movlw       H'00'                                           ;move literal 00h para work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0076   0086           00264     movwf       TRISB                                           ;configura todo PORTB como saída
+0077   1283           00265     bank0                                                               ;Seleciona banco 0 de memória
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0078   3400           00266     retlw       H'00'                                           ;retorna limpando work
+                      00267 
+                      00268 
+                      00269 ;========================================================================================
+                      00270 ; --- Sub Rotina para atraso de 500ms ---
+0079                  00271 _500ms:                                                                         ;Rotina para atraso de 5
+                            00ms
+                      00272 
+0079   30C8           00273         movlw           D'200'                                          ;Move o valor para W
+007A   00A3           00274         movwf           T0                                                      ;Inicializa tempo0 
+                      00275 
+                      00276                                                                                         ; 4 ciclos de má
+                            quina
+                      00277 
+007B                  00278 aux1:
+007B   30FA           00279         movlw           D'250'                                          ;Move o valor para W
+007C   00A4           00280         movwf           T1                                                      ;Inicializa tempo1
+                      00281         
+                      00282                                                                                         ; 2 ciclos de má
+                            quina
+                      00283 
+007D                  00284 aux2:
+007D   0000           00285         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+007E   0000           00286         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+007F   0000           00287         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+0080   0000           00288         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+0081   0000           00289         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+0082   0000           00290         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+0083   0000           00291         nop                                                                             ;no operation | 
+                            1 ciclo de máquina
+                      00292 
+Message[305]: Using default destination of 1 (file).
+0084   0BA4           00293         decfsz          T1                                                      ;Decrementa tempo1 até q
+                            ue seja igual a zero
+0085   287D           00294         goto            aux2                                            ;Vai para a label aux2 
+                      00295 
+                      00296                                                                                         ; 250 x 10 ciclo
+                            s de máquina = 2500 ciclos
+                      00297 
+Message[305]: Using default destination of 1 (file).
+0086   0BA3           00298         decfsz          T0                                                      ;Decrementa tempo0 até q
+                            ue seja igual a zero
+0087   287B           00299         goto            aux1                                            ;Vai para a label aux1
+                      00300 
+                      00301                                                                                         ; 3 ciclos de má
+                            quina
+                      00302 
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00303                                                                                         ; 2500 x 200 = 5
+                            00000
+                      00304 
+0088   0008           00305         return                                                                  ;Retorna após a chamada 
+                            da sub rotina
+                      00306         
+                      00307 
+                      00308 ;========================================================================================
+                      00309 ; --- Sub rotina de conversão Binário para Decimal ---
+                      00310 ;**********************************************************************
+                      00311 ;* Ajuste decimal
+                      00312 ;* W [HEX] =  dezena [DEC] ; unidade [DEC]
+                      00313 ;* Conforme indicado no livro - "Conectando o PIC - Recursos avançados"
+                      00314 ;* Autores Nicolás César Lavinia e David José de Souza
+                      00315 ;*
+                      00316 ;* Alterada por Márcio José Soares para uso com números com duas dezenas e uma unidade
+                      00317 ;* Artigo disponível em arnerobotics.com.br
+                      00318 ;*
+                      00319 ;* Adaptado por Wagner Rambo para aplicação no projeto Voltímetro
+                      00320 ;*
+                      00321 ;* Recebe o valor atual de Work e retorna os registradores de usuário
+                      00322 ;* CENTENA, DEZ e UNI o número BCD correspondente.
+                      00323 
+0089                  00324 conv_binToDec:
+                      00325 
+0089   00A5           00326         movwf           REG_AUX                                         ;salva valor a converter em REG_
+                            AUX
+008A   01A6           00327         clrf            UNI                                                     ;limpa unidade
+008B   01A7           00328         clrf            DEZ                                                     ;limpa dezena
+008C   01A8           00329         clrf            CEN                                                     ;limpa centena
+                      00330 
+008D   08A5           00331         movf            REG_AUX,F                                       ;REG_AUX = REG_AUX
+008E   1903           00332         btfsc           STATUS,Z                                        ;valor a converter resultou em z
+                            ero?
+008F   0008           00333         return                                                                  ;Sim. Retorna
+                      00334 
+0090                  00335 start_adj:
+                      00336                                                 
+0090   0AA6           00337         incf            UNI,F                                           ;Não. Incrementa UNI
+0091   0826           00338         movf            UNI,W                                           ;move o conteúdo de UNI para Wor
+                            k
+0092   3A0A           00339         xorlw           H'0A'                                           ;W = UNI XOR 10d
+0093   1D03           00340         btfss           STATUS,Z                                        ;Resultou em 10d?
+0094   289E           00341         goto            end_adj                                         ;Não. Desvia para end_adj
+                      00342                                                  
+0095   01A6           00343         clrf            UNI                                                     ;Sim. Limpa registrador 
+                            UNI
+0096   0827           00344         movf            DEZ,W                                           ;Move o conteúdo de DEZ para Wor
+                            k
+0097   3A09           00345         xorlw           H'09'                                           ;W = DEZ_A XOR 9d
+0098   1D03           00346         btfss           STATUS,Z                                        ;Resultou em 9d?
+0099   289D           00347         goto            incDezA                                         ;Não, valor menor que 9. Increme
+                            nta DEZ_A
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+009A   01A7           00348         clrf            DEZ                                                     ;Sim. Limpa registrador 
+                            DEZ
+009B   0AA8           00349         incf            CEN,F                                           ;Incrementa registrador CEN
+009C   289E           00350         goto            end_adj                                         ;Desvia para end_adj
+                      00351         
+009D                  00352 incDezA:
+009D   0AA7           00353         incf            DEZ,F                                           ;Incrementa DEZ
+                      00354         
+009E                  00355 end_adj:
+009E   0BA5           00356         decfsz          REG_AUX,F                                       ;Decrementa REG_AUX. Fim da conv
+                            ersão ?
+009F   2890           00357         goto            start_adj                                       ;Não. Continua
+00A0   0008           00358         return                                                                  ;Sim. Retorna
+                      00359  
+                      00360         
+                      00361 ;========================================================================================       
+                      00362 ; --- Final do Programa ---     
+                      00363         end
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ADCON0                            0000001F
+ADCON1                            0000009F
+ADCS0                             00000006
+ADCS1                             00000007
+ADCS2                             00000006
+ADDEN                             00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADRESH                            0000001E
+ADRESL                            0000009E
+BCLIE                             00000003
+BCLIF                             00000003
+BF                                00000000
+BRGH                              00000002
+BUSY_CHECK                        00000067
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCP2CON                           0000001D
+CCP2IE                            00000000
+CCP2IF                            00000000
+CCP2M0                            00000000
+CCP2M1                            00000001
+CCP2M2                            00000002
+CCP2M3                            00000003
+CCP2X                             00000005
+CCP2Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CCPR2                             0000001B
+CCPR2H                            0000001C
+CCPR2L                            0000001B
+CEN                               00000028
+CHS0                              00000003
+CHS1                              00000004
+CHS2                              00000005
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CIS                               00000003
+CKE                               00000006
+CKP                               00000004
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000009C
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+CVR0                              00000000
+CVR1                              00000001
+CVR2                              00000002
+CVR3                              00000003
+CVRCON                            0000009D
+CVREN                             00000007
+CVROE                             00000006
+CVRR                              00000005
+D                                 00000005
+DATA_ADDRESS                      00000005
+DC                                00000001
+DEZ                               00000027
+DISP                              00000029
+D_A                               00000005
+D_NOT_A                           00000005
+EEADR                             0000010D
+EEADRH                            0000010F
+EECON1                            0000018C
+EECON2                            0000018D
+EEDATA                            0000010C
+EEDATH                            0000010E
+EEIE                              00000004
+EEIF                              00000004
+EEPGD                             00000007
+EN                                PORTA,3
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GCEN                              00000007
+GIE                               00000007
+GO                                00000002
+GO_DONE                           00000002
+GO_NOT_DONE                       00000002
+I2C_DATA                          00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 12
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+IRP                               00000007
+LCD_DATA                          PORTB
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BO                            00000000
+NOT_BOR                           00000000
+NOT_DONE                          00000002
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_RBPU                          00000007
+NOT_RC8                           00000006
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+NOT_TX8                           00000006
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OERR                              00000001
+OPTION_REG                        00000081
+P                                 00000004
+PCFG0                             00000000
+PCFG1                             00000001
+PCFG2                             00000002
+PCFG3                             00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PEN                               00000002
+PIE1                              0000008C
+PIE2                              0000008D
+PIR1                              0000000C
+PIR2                              0000000D
+PORTA                             00000005
+PORTB                             00000006
+PORTC                             00000007
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RC8_9                             00000006
+RC9                               00000006
+RCD8                              00000000
+RCEN                              00000003
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+READ_WRITE                        00000002
+REG_AUX                           00000025
+RP0                               00000005
+RP1                               00000006
+RS                                PORTA,1
+RSEN                              00000001
+RW                                PORTA,2
+RX9                               00000006
+RX9D                              00000000
+R_NOT_W                           00000002
+R_W                               00000002
+S                                 00000003
+SEN                               00000000
+SMP                               00000007
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+SSPADD                            00000093
+SSPBUF                            00000013
+SSPCON                            00000014
+SSPCON2                           00000091
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPOV                             00000006
+SSPSTAT                           00000094
+STATUS                            00000003
+STATUS_TEMP                       00000021
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 14
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+SYNC                              00000004
+T0                                00000023
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1                                00000024
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1INSYNC                          00000002
+T1OSCEN                           00000003
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRISC                             00000087
+TRISC0                            00000000
+TRISC1                            00000001
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 15
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TRISC2                            00000002
+TRISC3                            00000003
+TRISC4                            00000004
+TRISC5                            00000005
+TRISC6                            00000006
+TRISC7                            00000007
+TRMT                              00000001
+TX8_9                             00000006
+TX9                               00000006
+TX9D                              00000000
+TXD8                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+TXSTA                             00000098
+UA                                00000001
+UNI                               00000026
+W                                 00000000
+WCOL                              00000007
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_500ms                            00000079
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_ALL                           00001FFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEBUG_OFF                        00003FFF
+_DEBUG_ON                         000037FF
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+MPASM  5.51                   LCDESCREVE2.ASM   9-10-2020  21:21:11         PAGE 16
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_WRT_1FOURTH                      00003BFF
+_WRT_256                          00003DFF
+_WRT_HALF                         000039FF
+_WRT_OFF                          00003FFF
+_XT_OSC                           00003FFD
+__16F876A                         00000001
+__DEBUG                           1
+aux1                              0000007B
+aux2                              0000007D
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+cmd                               00000022
+conv_binToDec                     00000089
+end_adj                           0000009E
+exit_ISR                          00000008
+incDezA                           0000009D
+inicio                            0000000D
+lcd_char                          0000004C
+lcd_command                       0000005E
+lcd_hello                         0000002D
+lcd_init                          00000055
+lcdnobusy                         00000073
+loop                              0000001D
+start_adj                         00000090
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX X--------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:   158
+Program Memory Words Free:  8034
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     8 reported,     0 suppressed
+
+

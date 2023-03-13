@@ -1,0 +1,48 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Tue Sep 08 23:00:21 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x000060
+.config_2007_CONVERSAOAD.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x000033      
+                            0x002007    0x002007      
+            50 out of 1158 program addresses used, program memory utilization is 4%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                   _100us   0x00002f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                 continua   0x000024    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+           espera_leitura   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                 liga_led   0x000023    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                     loop   0x00001a    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                     loop   0x00001a    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+           espera_leitura   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                 liga_led   0x000023    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                 continua   0x000024    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+                   _100us   0x00002f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC12F675\ConversaoAD\MPLAB\ConversaoAD.asm
+
+

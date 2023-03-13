@@ -1,0 +1,46 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Tue Sep 01 20:18:16 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x000082
+.config_2007_MULTIPLEXACAODISPLAYS.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x000044      
+                            0x002007    0x002007      
+            67 out of 2182 program addresses used, program memory utilization is 3%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+             apaga_digUni   0x000011    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                  display   0x000034    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                 exit_ISR   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                  imprime   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                   inicio   0x000020    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                     loop   0x00002f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+             apaga_digUni   0x000011    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                  imprime   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                 exit_ISR   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                   inicio   0x000020    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                     loop   0x00002f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+                  display   0x000034    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\MultiplexacaoDisplays\MPLAB\MultiplexacaoDisplays.asm
+
+

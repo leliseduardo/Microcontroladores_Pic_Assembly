@@ -1,0 +1,847 @@
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é criar um temporizador progravável a partir de dois displays 
+                            de 7 segmentos multiplexa-
+                      00003 ;       dos, dois timers e dois botões. O objetivo é, com um botão, levar o display até um valor entre 0
+                             e 99 e, a partir do
+                      00004 ;       outro botão, fazer com que o display decremente do valor setado até zero. O timer0 tem a função 
+                            de multiplexar os
+                      00005 ;       displays e o timer1 tem a função de criar a base de tempo para o decremento do display.
+                      00006 ;
+                      00007 ;       *** Timer 0 ***
+                      00008 ;
+                      00009 ;       Overflow = (256 - TMR0) * prescaler * ciclo de máquina
+                      00010 ;       Overflow = 256 * 32 * 1us
+                      00011 ;       Overflow = 8,192ms 
+                      00012 ;
+                      00013 ;       *** Timer 1 ***
+                      00014 ;       
+                      00015 ;       Overflow = (65536 - <TMR1H::TMR1L>) * prescaler * ciclo de máquina
+                      00016 ;               
+                      00017 ;                                                                                       Overflow
+                      00018 ;       (65536 - <TMR1H::TMR1L>) =      ---------------------------------
+                      00019 ;                                                                  prescaler * ciclo de máquina 
+                      00020 ;
+                      00021 ;                                                                               Overflow
+                      00022 ;       <TMR1H::TMR1L> = 65536 - ---------------------------------
+                      00023 ;                                                               prescaler * ciclo de máquina
+                      00024 ;
+                      00025 ;                                                          200ms
+                      00026 ;       <TMR1H::TMR1L> = 65536 - --------- = 15536
+                      00027 ;                                                         4 * 1us
+                      00028 ;
+                      00029 ;       <TMR1H::TMR1L> = 15536d = 3CB0h
+                      00030 ;
+                      00031 ;       TMR1H = 3Ch
+                      00032 ;       TMR1L = B0h                     
+                      00033 ;
+                      00034 ;               Na prática o circuito e o programa funcionaram perfeitamente e como esperado    
+                      00035 ;
+                      00036 
+                      00037 
+                      00038         list            p=16f628a                                               ; Informa o microcontrol
+                            ador utilizado
+                      00039         
+                      00040 ; --- inclusões ---
+                      00041 
+                      00042         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00043         
+                      00044 ; --- Fuse bits ---
+                      00045 
+2007   3F21           00046         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00047         
+                      00048 ;       Configura clock de 4MHz, habilita o Power Up Timer e habilita o Master Clear
+                      00049 
+                      00050 ; --- Mapeamento de hardware ---
+                      00051 
+                      00052         #define         digDez  PORTA,3                         ; Cria mnemônico para digDez em RA3
+                      00053         #define         digUni  PORTA,2                         ; Cria mnemônico para digUni em RA2
+                      00054         #define         botao1  PORTA,0                         ; Cria mnemônico para botao1 em RA0
+                      00055         #define         botao2  PORTA,1                         ; Cria mnemônico para botao2 em RA1
+                      00056 
+                      00057 ; --- Paginação de memória ---
+                      00058 
+                      00059         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00060         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00061         
+                      00062 ; --- Registradores de uso geral ---
+                      00063 
+                      00064         cblock          H'20'                                           ; Início do endereço para config
+                            uração dos registradores de uso geral
+                      00065         
+  00000020            00066         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00067         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00068         cont                                                                    ; Contador para a base d
+                            e tempo do timer1
+                      00069         
+  00000023            00070         flags                                                                   ; Flags para testar boto
+                            es
+                      00071         
+  00000024            00072         bouncingB1a                                                             ; Anti bouncing botao 1
+  00000025            00073         bouncingB1b                                                             ; Anti bouncing botao 1 
+  00000026            00074         bouncingB2a                                                             ; Anti bouncing botao 2
+  00000027            00075         bouncingB2b                                                             ; Anti bouncing botao 2
+                      00076         
+  00000028            00077         dez                                                                             ; Dezena do disp
+                            lay
+  00000029            00078         uni                                                                             ; Unidade do dis
+                            play
+                      00079         
+                      00080         endc                                                                    ; Fim da configuração do
+                            s registradores de uso geral
+                      00081         
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00082         #define         flagB1  flags,0                         ; Cria mnemônico para flag de teste do b
+                            otao1
+                      00083         #define         flagB2  flags,1                         ; Cria mnemônico para flag de teste do b
+                            otao2
+                      00084         
+                      00085 ; --- Vetor de Reset ---
+                      00086 
+0000                  00087         org                     H'0000'                                         ; Origem do endereço do 
+                            vetor de Reset
+                      00088         
+0000   2830           00089         goto            inicio                                          ; Desvia para label inicio, prog
+                            rama principal
+                      00090         
+                      00091 ; Vetor de Interrupção
+                      00092 
+0004                  00093         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Reset
+                      00094         
+                      00095 ; -- Salvamento de contexto --
+                      00096 
+0004   00A0           00097         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00098         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00099         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00100         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00101         
+                      00102 ; -- Fim do salvamento de contexto --
+                      00103 
+                      00104         ; Desenvolvimento da ISR...
+                      00105 
+0008   190B           00106         btfsc           INTCON,T0IF                                     ; Testa se a flag T0IF está limp
+                            a, se estiver, pula uma linha
+0009   280D           00107         goto            timer0_ISR                                      ; Desvia para rotina de interurp
+                            ção do timer0
+000A   180C           00108         btfsc           PIR1,TMR1IF                                     ; Testa se a flag TMR1IF está li
+                            mpa, se estiver, pula uma linha
+000B   281F           00109         goto            timer1_ISR                                      ; Desvia para rotina de interrup
+                            ção do timer1
+000C   282B           00110         goto            exit_ISR                                        ; Sai da interrupção
+                      00111         
+                      00112 ; ***** Timer 0 ****    
+                      00113 
+000D                  00114 timer0_ISR:
+                      00115 
+000D   110B           00116         bcf                     INTCON,T0IF                                     ; Limpa a flag T0IF
+                      00117         
+000E   1D85           00118         btfss           digDez                                          ; Testa se o o display das dezen
+                            as está ligado, se estiver, pula uma linha
+000F   2814           00119         goto            apaga_digUni                            ; Se não estiver, desvia para label apag
+                            a_digUni
+0010   1185           00120         bcf                     digDez                                          ; Desliga display das de
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            zenas
+0011   0186           00121         clrf            PORTB                                           ; Limpa PORTB
+0012   1505           00122         bsf                     digUni                                          ; Liga display das unida
+                            de
+0013   281B           00123         goto            imprime                                         ; Desvia para label imprime
+                      00124 
+0014                  00125 apaga_digUni:
+                      00126         
+0014   1105           00127         bcf                     digUni                                          ; Desliga display das un
+                            idades
+0015   0186           00128         clrf            PORTB                                           ; Limpa PORTB
+0016   1585           00129         bsf             digDez                                          ; Liga display das dezenas
+0017   0828           00130         movf            dez,w                                           ; w = dez
+0018   209B           00131         call            display                                         ; Desvia para subrotina display
+0019   0086           00132         movwf           PORTB                                           ; PORTB = w, imprime no display 
+                            o valor retornado pela subrotina display
+001A   282B           00133         goto            exit_ISR                                        ; Sai da interrupção
+                      00134 
+001B                  00135 imprime:
+                      00136 
+001B   0829           00137         movf            uni,w                                           ; w = uni
+001C   209B           00138         call            display                                         ; Desvia para subrotina display
+001D   0086           00139         movwf           PORTB                                           ; PORTB = w, imprime no display 
+                            o valor retornado pela subrotina display
+001E   282B           00140         goto            exit_ISR                                        ; Sai da interrupção
+                      00141         
+                      00142 ; ***** Fim Timer 0 *****
+                      00143         
+                      00144         
+                      00145 ; ***** Timer 1 ****
+                      00146 
+001F                  00147 timer1_ISR:
+                      00148 
+                      00149 ; -- 200ms --
+                      00150 
+001F   100C           00151         bcf             PIR1,TMR1IF                                     ; Limpa a flag TMR1IF
+0020   303C           00152         movlw           H'3C'                                           ; w = 3Ch;
+0021   008F           00153         movwf           TMR1H                                           ; reinicia TMR1H = 3Ch
+0022   30B0           00154         movlw           H'B0'                                           ; w = B0h;
+0023   008E           00155         movwf           TMR1L                                           ; reinicia TMR1L = B0h          
+                      00156         
+                      00157 ; -- 200ms --
+                      00158 
+                      00159 ; -- 1s --
+                      00160         
+0024   0AA2           00161         incf            cont,F                                          ; Incrementa cont
+0025   3005           00162         movlw           H'05'                                           ; w = 05h
+0026   0622           00163         xorwf           cont,w                                          ; Faz lógica XOR para testar se 
+                            cont já chegou a 05h, se chegou resulta em 0
+0027   1D03           00164         btfss           STATUS,Z                                        ; Se resultou em zero, a flag Z 
+                            seta e pula uma linha
+0028   282B           00165         goto            exit_ISR                                        ; Se não resultou em zero, cont 
+                            ainda não chegou em 05h e sai da interrupção
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0029   01A2           00166         clrf            cont                                            ; Limpa cont
+                      00167 
+002A   208B           00168         call            decrementa                                      ; Desvia para subrotina decremen
+                            ta
+                      00169         
+                      00170 ; -- 1s --
+                      00171 
+                      00172 ; ***** Fim Timer 1 *****
+                      00173         
+                      00174 ; -- Recuperação de contexto --
+                      00175 
+002B                  00176 exit_ISR:
+                      00177 
+002B   0E21           00178         swapf           STATUS_TEMP,w                           ; w = STATUS (com nibbles reinvertidos, 
+                            isto é, STATUS original)
+002C   0083           00179         movwf           STATUS                                          ; STATUS = STATUS (original)
+002D   0EA0           00180         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+002E   0E20           00181         swapf           W_TEMP,w                                        ; w = W_TEMP (com nibbles reinve
+                            rtidos, isto é, w original)
+                      00182         
+002F   0009           00183         retfie                                                                  ; Retorna para execução 
+                            principal
+                      00184         
+                      00185 ; -- Fim da recuperação de contexto -- 
+                      00186 
+                      00187 
+                      00188 ; --- Programa principal ---
+                      00189 
+0030                  00190 inicio:
+                      00191 
+0030   1683           00192         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0031   30F3           00193         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0032   0085           00194         movwf           TRISA                                           ; Configura apenas RA3 e RA2 com
+                            o saídas digitais
+0033   3010           00195         movlw           H'10'                                           ; w = 10h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0034   0086           00196         movwf           TRISB                                           ; Configura todo portb como saíd
+                            a digital, exceto RB4
+0035   3084           00197         movlw           H'84'                                           ; w = 84h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0036   0081           00198         movwf           OPTION_REG                                      ; Timer0 incrementa pelo ciclo d
+                            e máquina e prescaler em 1:32
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0037   140C           00199         bsf                     PIE1,TMR1IE                                     ; Liga a interrupção por
+                             overflow do timer1
+0038   1283           00200         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0039   3007           00201         movlw           H'07'                                           ; w = 07h
+003A   009F           00202         movwf           CMCON                                           ; Desabilita os comparadores int
+                            ernos
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+003B   30E0           00203         movlw           H'E0'                                           ; w = E0h
+003C   008B           00204         movwf           INTCON                                          ; Habilita a interrupção global,
+                             por periféricos e do timer0
+003D   3020           00205         movlw           H'20'                                           ; w = 20h
+003E   0090           00206         movwf           T1CON                                           ; Prescaler em 1:4, incrementa c
+                            om ciclo de máquina e desliga o timer1
+003F   303C           00207         movlw           H'3C'                                           ; w = 3Ch;
+0040   008F           00208         movwf           TMR1H                                           ; reinicia TMR1H = 3Ch
+0041   30B0           00209         movlw           H'B0'                                           ; w = B0h;
+0042   008E           00210         movwf           TMR1L                                           ; reinicia TMR1L = B0h
+0043   01A2           00211         clrf            cont                                            ; Zera cont     
+                      00212         
+0044   01A3           00213         clrf            flags                                           ; Limpa flags
+0045   01A8           00214         clrf            dez                                                     ; Limpa dez
+0046   01A9           00215         clrf            uni                                                     ; Limpa uni
+0047   30FF           00216         movlw           H'FF'                                           ; w = FFh
+0048   00A4           00217         movwf           bouncingB1a                                     ; bouncingB1a = FFh
+0049   3008           00218         movlw           H'08'                                           ; w = 08h
+004A   00A5           00219         movwf           bouncingB1b                                     ; bouncingB1b = 08h
+004B   30FF           00220         movlw           H'FF'                                           ; w = FFh
+004C   00A6           00221         movwf           bouncingB2a                                     ; bouncingB1a = FFh
+004D   3008           00222         movlw           H'08'                                           ; w = 08h
+004E   00A7           00223         movwf           bouncingB2b                                     ; bouncingB1b = 08h  
+                      00224         
+                      00225 ; --- Loop infinito ---
+                      00226 
+004F                  00227 loop:                                                                           ; Cria loop infinito
+                      00228                 
+004F   2052           00229         call            press_B1                                        ; Desvia para subrotina press_B1
+0050   2074           00230         call            press_B2                                        ; Desvia para subrotina press_B2
+                      00231         
+0051   284F           00232         goto            loop                                            ; Desvia para loop infinito
+                      00233         
+                      00234 ; --- Sub Rotinas ---
+                      00235 
+                      00236 ; ***** Botao 1 *****
+                      00237 
+0052                  00238 press_B1:
+                      00239         
+0052   1C23           00240         btfss           flagB1                                          ; Testa se flagB1 está setada, s
+                            e estiver, pula uma linha
+0053   2857           00241         goto            testa_B1                                        ; Se não estiver, desvia para la
+                            bel testa_B1
+0054   1C05           00242         btfss           botao1                                          ; Testa se botao1 está solto, se
+                             estiver, pula uma linha
+0055   0008           00243         return                                                                  ; Se estiver pressionado
+                            , retorna para loop infinito
+0056   1023           00244         bcf                     flagB1                                          ; Limpa flagB1
+                      00245 
+0057                  00246 testa_B1:
+                      00247 
+0057   1805           00248         btfsc           botao1                                          ; Testa se botao1 está pressiona
+                            do, se estiver, pula uma linha
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0058   286F           00249         goto            recarrega_B1                            ; Se não estiver, desvia para recarrega_
+                            B1
+0059   0BA4           00250         decfsz          bouncingB1a,F                           ; Decrementa bouncingB1a e testa se cheg
+                            ou a zero, se chegou, pula uma linha
+005A   0008           00251         return                                                                  ; Se não chegou, retorna
+005B   30FF           00252         movlw           H'FF'                                           ; w = FFh
+005C   00A4           00253         movwf           bouncingB1a                                     ; bouncingB1a = FFh
+005D   0BA5           00254         decfsz          bouncingB1b,F                           ; Decrementa bouncingB1b e testa se cheg
+                            ou a zero, se chegou, pula uma linha
+005E   0008           00255         return                                                                  ; Se não chegou, retorna
+005F   3008           00256         movlw           H'08'                                           ; w = 08h
+0060   00A5           00257         movwf           bouncingB1b                                     ; bouncingB1b = 08h
+0061   1423           00258         bsf                     flagB1                                          ; Seta flagB1
+0062   0AA9           00259         incf            uni,F                                           ; Incrementa uni
+0063   300A           00260         movlw           H'0A'                                           ; w = 0Ah
+0064   0629           00261         xorwf           uni,w                                           ; Faz XOR entre w e uni, para te
+                            star se uni chegou a 0Ah
+0065   1D03           00262         btfss           STATUS,Z                                        ; Se chegou, Z seta para 1 e pul
+                            a uma linha
+0066   0008           00263         return                                                                  ; Se não chegou, retorna
+0067   01A9           00264         clrf            uni                                                     ; Zera uni
+0068   0AA8           00265         incf            dez,F                                           ; Incrementa dez 
+0069   300A           00266         movlw           H'0A'                                           ; w = 0Ah
+006A   0628           00267         xorwf           dez,w                                           ; Faz XOR entre w e dez, para te
+                            star se dez chegou a 0A
+006B   1D03           00268         btfss           STATUS,Z                                        ; Se chegou, seta Z e pula uma l
+                            inha
+006C   0008           00269         return                                                                  ; Se não chegou, retorna
+006D   01A8           00270         clrf            dez                                                     ; Zera dez
+006E   0008           00271         return                                                                  ; Retorna
+                      00272 
+006F                  00273 recarrega_B1:
+                      00274 
+006F   30FF           00275         movlw           H'FF'                                           ; w = FFh
+0070   00A4           00276         movwf           bouncingB1a                                     ; bouncingB1a = FFh
+0071   3008           00277         movlw           H'08'                                           ; w = 08h
+0072   00A5           00278         movwf           bouncingB1b                                     ; bouncingB1b = 08h
+0073   0008           00279         return                                                                  ; Retorna 
+                      00280         
+                      00281 ; ***** Fim Botao 1 *****
+                      00282 
+                      00283 ; ***** Botao 2 *****
+                      00284 
+0074                  00285 press_B2:
+                      00286 
+0074   1CA3           00287         btfss           flagB2                                          ; Testa se flagB2 está setada, s
+                            e estiver, pula uma linha
+0075   2879           00288         goto            testa_B2                                        ; Se não estiver, desvia para te
+                            sta_B2
+0076   1C85           00289         btfss           botao2                                          ; Testa se botao2 está solto, se
+                             estiver, pula uma linha
+0077   0008           00290         return                                                                  ; Se não estiver, retorn
+                            a
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0078   10A3           00291         bcf                     flagB2                                          ; Limpa flagB2
+                      00292 
+0079                  00293 testa_B2:
+                      00294 
+0079   1885           00295         btfsc           botao2                                          ; Testa se botao2 está pressiona
+                            do, se estiver, pula uma linha
+007A   2886           00296         goto            recarrega_B2                            ; Se não estiver, desvia para recarrega_
+                            B2
+007B   0BA6           00297         decfsz          bouncingB2a,F                           ; Decrementa bouncingB2a e testa se cheg
+                            ou a zero, se chegou, pula uma linha
+007C   0008           00298         return                                                                  ; Se não chegou, retorna
+007D   30FF           00299         movlw           H'FF'                                           ; w = FFh
+007E   00A6           00300         movwf           bouncingB2a                                     ; bouncingB2a = FFh
+007F   0BA7           00301         decfsz          bouncingB2b,F                                   ; Decrementa bouncingB2b e testa
+                             se chegou a zero, se chegou, pula uma linha
+0080   0008           00302         return                                                                  ; Se não chegou, retorna
+0081   3008           00303         movlw           H'08'                                           ; w = 08h       
+0082   00A7           00304         movwf           bouncingB2b                                     ; bouncingB2b = 08h
+0083   14A3           00305         bsf                     flagB2                                          ; Seta flagB2
+0084   1410           00306         bsf                     T1CON,TMR1ON                            ; Liga o timer1
+0085   0008           00307         return                                                                  ; Retorna
+                      00308         
+0086                  00309 recarrega_B2:
+                      00310 
+0086   30FF           00311         movlw           H'FF'                                           ; w = FFh
+0087   00A6           00312         movwf           bouncingB2a                                     ; bouncingB1a = FFh
+0088   3008           00313         movlw           H'08'                                           ; w = 08h
+0089   00A7           00314         movwf           bouncingB2b                                     ; bouncingB1b = 08h
+008A   0008           00315         return  
+                      00316         
+                      00317 ; ***** Fim Botao 2 *****
+                      00318         
+                      00319 ; ***** Decremento ****
+                      00320 
+008B                  00321 decrementa:
+                      00322 
+008B   03A9           00323         decf            uni,F                                           ; Decrementa uni
+008C   30FF           00324         movlw           H'FF'                                           ; w = FFh
+008D   0629           00325         xorwf           uni,w                                           ; Faz XOR entre w e uni, para te
+                            star se uni chegou até FFh
+008E   1D03           00326         btfss           STATUS,Z                                        ; Se chegou, seta a flag Z e pul
+                            a uma linha
+008F   0008           00327         return                                                                  ; Se não chegou, retorna
+0090   3009           00328         movlw           H'09'                                           ; w = 09h
+0091   00A9           00329         movwf           uni                                                     ; uni = 09h
+0092   03A8           00330         decf            dez,F                                           ; Decrementa dez
+0093   30FF           00331         movlw           H'FF'                                           ; w = FFh
+0094   0628           00332         xorwf           dez,w                                           ; Faz XOR entre w e dez, para te
+                            star se dez chegou a FFh
+0095   1D03           00333         btfss           STATUS,Z                                        ; Se chegou, seta a flag Z e pul
+                            a uma linha
+0096   0008           00334         return                                                                  ; Se não chegou, retorna
+0097   1010           00335         bcf                     T1CON,TMR1ON                            ; Desliga timer1
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0098   01A9           00336         clrf            uni                                                     ; Zera uni
+0099   01A8           00337         clrf            dez                                                     ; zera dez
+009A   0008           00338         return
+                      00339         
+                      00340 ; ***** Fim Decremento ****     
+                      00341         
+                      00342 
+                      00343 ; ***** Display ****
+                      00344 
+009B                  00345 display:
+                      00346 
+009B   0782           00347         addwf           PCL,F                                           ; Adiciona em PCL o valor de 0 a
+                             Fh do nibble menos sig. de disp, fazendo com
+                      00348                                                                                         ; que haja um de
+                            svio condicional para "disp" comandos a frente
+                      00349         
+                      00350         ; Display         EDC.BAFG
+                      00351                 
+009C   34EE           00352         retlw           B'11101110'                                     ; Retorna o valor binário que es
+                            creve 0 para a subrotina adiciona
+009D   3428           00353         retlw           B'00101000'                                     ; Retorna o valor binário que es
+                            creve 1 para a subrotina adiciona
+009E   34CD           00354         retlw           B'11001101'                                     ; Retorna o valor binário que es
+                            creve 2 para a subrotina adiciona
+009F   346D           00355         retlw           B'01101101'                                     ; Retorna o valor binário que es
+                            creve 3 para a subrotina adiciona
+00A0   342B           00356         retlw           B'00101011'                                     ; Retorna o valor binário que es
+                            creve 4 para a subrotina adiciona
+00A1   3467           00357         retlw           B'01100111'                                     ; Retorna o valor binário que es
+                            creve 5 para a subrotina adiciona
+00A2   34E7           00358         retlw           B'11100111'                                     ; Retorna o valor binário que es
+                            creve 6 para a subrotina adiciona
+00A3   342C           00359         retlw           B'00101100'                                     ; Retorna o valor binário que es
+                            creve 7 para a subrotina adiciona
+00A4   34EF           00360         retlw           B'11101111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+00A5   346F           00361         retlw           B'01101111'                                     ; Retorna o valor binário que es
+                            creve 9 para a subrotina adiciona
+00A6   34AF           00362         retlw           B'10101111'                                     ; Retorna o valor binário que es
+                            creve A para a subrotina adiciona
+00A7   34E3           00363         retlw           B'11100011'                                     ; Retorna o valor binário que es
+                            creve b para a subrotina adiciona
+00A8   34C6           00364         retlw           B'11000110'                                     ; Retorna o valor binário que es
+                            creve C para a subrotina adiciona
+00A9   34E9           00365         retlw           B'11101001'                                     ; Retorna o valor binário que es
+                            creve d para a subrotina adiciona
+00AA   34C7           00366         retlw           B'11000111'                                     ; Retorna o valor binário que es
+                            creve E para a subrotina adiciona
+00AB   3487           00367         retlw           B'10000111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+                      00368         
+                      00369 ; ***** Fim Display *****
+                      00370 
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00371         
+                      00372         end                                                                             ; Fim do program
+                            a
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 12
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 14
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 15
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+apaga_digUni                      00000014
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTA,0
+botao2                            PORTA,1
+bouncingB1a                       00000024
+bouncingB1b                       00000025
+bouncingB2a                       00000026
+bouncingB2b                       00000027
+cont                              00000022
+decrementa                        0000008B
+dez                               00000028
+digDez                            PORTA,3
+digUni                            PORTA,2
+display                           0000009B
+exit_ISR                          0000002B
+flagB1                            flags,0
+flagB2                            flags,1
+flags                             00000023
+imprime                           0000001B
+inicio                            00000030
+loop                              0000004F
+press_B1                          00000052
+press_B2                          00000074
+recarrega_B1                      0000006F
+recarrega_B2                      00000086
+testa_B1                          00000057
+testa_B2                          00000079
+timer0_ISR                        0000000D
+timer1_ISR                        0000001F
+uni                               00000029
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXX---- ----------------
+MPASM  5.51       TEMPORIZADORPROGRAMAVEL.ASM   9-2-2020  12:12:44         PAGE 16
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:   169
+Program Memory Words Free:  1879
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     4 reported,     0 suppressed
+
+

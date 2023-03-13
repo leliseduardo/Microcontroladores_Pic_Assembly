@@ -1,0 +1,5 @@
+Message[302] C:\USERS\ELELI\DOCUMENTS\CURSOS\CURSO DE PIC\ASSEMBLY PIC\PIC16F628A\PWMMOTOR\MPLAB\PWMMOTOR.ASM 149 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\ELELI\DOCUMENTS\CURSOS\CURSO DE PIC\ASSEMBLY PIC\PIC16F628A\PWMMOTOR\MPLAB\PWMMOTOR.ASM 151 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\ELELI\DOCUMENTS\CURSOS\CURSO DE PIC\ASSEMBLY PIC\PIC16F628A\PWMMOTOR\MPLAB\PWMMOTOR.ASM 153 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\ELELI\DOCUMENTS\CURSOS\CURSO DE PIC\ASSEMBLY PIC\PIC16F628A\PWMMOTOR\MPLAB\PWMMOTOR.ASM 155 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Warning[205] C:\USERS\ELELI\DOCUMENTS\CURSOS\CURSO DE PIC\ASSEMBLY PIC\PIC16F628A\PWMMOTOR\MPLAB\PWMMOTOR.ASM 180 : Found directive in column 1. (end)

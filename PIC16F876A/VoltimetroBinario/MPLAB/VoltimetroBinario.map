@@ -1,0 +1,54 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Wed Sep 09 16:55:36 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x0000e2
+.config_2007_VOLTIMETROBINARIO.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x000074      
+                            0x002007    0x002007      
+            115 out of 8454 program addresses used, program memory utilization is 1%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                      DIV   0x00005c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                    NOCHK   0x000067    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                     NOGO   0x000070    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+            configura_ADC   0x000026    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                    divid   0x000052    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+           espera_leitura   0x000014    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                     loop   0x000013    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                   multip   0x00002d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                     loop   0x000013    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+           espera_leitura   0x000014    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+            configura_ADC   0x000026    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                   multip   0x00002d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                    divid   0x000052    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                      DIV   0x00005c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                    NOCHK   0x000067    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+                     NOGO   0x000070    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroBinario\MPLAB\VoltimetroBinario.asm
+
+

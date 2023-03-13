@@ -1,0 +1,70 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Thu Sep 10 16:23:42 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x00018c
+.config_2007_VOLTIMETRODISPLAY.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x0000c9      
+                            0x002007    0x002007      
+            200 out of 8454 program addresses used, program memory utilization is 2%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                      DIV   0x0000a6    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                    NOCHK   0x0000b1    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                     NOGO   0x0000ba    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+            configura_ADC   0x000058    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+            conv_binToDec   0x00005f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 copy_cen   0x000010    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 copy_dez   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 copy_uni   0x000020    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                    divid   0x00009c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                  end_adj   0x000074    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+           espera_leitura   0x000046    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 exit_ISR   0x000027    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                  incDezA   0x000073    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                   inicio   0x00002c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                     loop   0x000045    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                   multip   0x000077    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                send_disp   0x0000bf    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                start_adj   0x000066    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 copy_cen   0x000010    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 copy_dez   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 copy_uni   0x000020    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                 exit_ISR   0x000027    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                   inicio   0x00002c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                     loop   0x000045    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+           espera_leitura   0x000046    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+            configura_ADC   0x000058    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+            conv_binToDec   0x00005f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                start_adj   0x000066    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                  incDezA   0x000073    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                  end_adj   0x000074    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                   multip   0x000077    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                    divid   0x00009c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                      DIV   0x0000a6    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                    NOCHK   0x0000b1    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                     NOGO   0x0000ba    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+                send_disp   0x0000bf    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\VoltimetroDisplay\MPLAB\VoltimetroDisplay.asm
+
+

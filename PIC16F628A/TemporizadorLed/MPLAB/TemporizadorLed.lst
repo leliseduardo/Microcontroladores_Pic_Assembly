@@ -1,0 +1,492 @@
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F628A              Clock = 4 MHz           Ciclo de máquina = 1us
+                      00003 ;
+                      00004 ;               Este programa tem a função de utilizar a interrupção do timer0 como temporizador. Ao cli
+                            car no botao1, o led1 
+                      00005 ;       ficará aceso por um determinado tempo, definido pela base de tempo. Daí apagará após esse tempo.
+                      00006 ;
+                      00007 ;               Timer 0
+                      00008 ;
+                      00009 ;               Overflow = (256 - TMR0) * prescaler * ciclo de máquina
+                      00010 ;               Overflow = 256 * 128 * 1us
+                      00011 ;               Overflow = 33ms
+                      00012 ;               
+                      00013 ;               Para configurar a base de tempo foi utilizada a variável cont = 128. Logo, a base de tem
+                            po para temporizar o led
+                      00014 ;       ficou com: overflow * cont = 33ms * 128 = +-4,22s.
+                      00015 ;
+                      00016 ;               Na simulação e na prática o circuito e o programa funcionaram como esperado.    
+                      00017 ;
+                      00018 
+                      00019         list            p=16f628a                                       ; Informa o microcontrolador uti
+                            lizado
+                      00020 
+                      00021 ; --- Inclusão de arquivos ---
+                      00022 
+                      00023         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00024         
+                      00025 ; --- Fuse bits ---
+                      00026 
+2007   3F21           00027         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00028         
+                      00029 ;       Clock de 4MHz, Power Up Time e Master Clear habilitados
+                      00030 
+                      00031 ; --- Paginação de memória ---
+                      00032 
+                      00033         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00034         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00035         
+                      00036 ; --- Saídas ---
+                      00037 
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00038         #define         led1    PORTA,3                         ; Cria um mnemônico para led1 em RA3
+                      00039         #define         led2    PORTA,2                         ; Cria um mnemônico para led2 em RA2
+                      00040         
+                      00041 ; --- Entradas ---
+                      00042 
+                      00043         #define         botao1  PORTB,0                         ; Cria um mnemônico para botao1 em RB0
+                      00044         #define         botao2  PORTB,1                         ; Cria um mnemônico para botao2 em RB1
+                      00045         
+                      00046 ; --- Registadores de uso geral ---
+                      00047 
+                      00048         cblock          H'20'                                           ; Cria registradores de uso gera
+                            l a partir do endereço 20h de memória
+                      00049         
+  00000020            00050         W_TEMP                                                                  ; Armazena conteúdo de W
+                             temporariamente
+  00000021            00051         STATUS_TEMP                                                             ; Armazena conteúdo de S
+                            TATUS temporariamente
+  00000022            00052         cont                                                                    ; Base de tempo para o t
+                            imer0
+                      00053         
+                      00054         endc
+                      00055 
+                      00056 ; --- Vetor de Reset ---
+                      00057 
+0000                  00058         org                     H'0000'                                         ; Origem do endereço do 
+                            vetor de Reset
+0000   2819           00059         goto            inicio                                          ; Desvia para label inicio
+                      00060         
+                      00061 ; --- Vetor de Interrupção
+0004                  00062         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Interrupção
+                      00063         
+                      00064 ; --- Salva contexto ---
+                      00065         
+0004   00A0           00066         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00067         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00068         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00069         movwf           STATUS_TEMP                                     ; STATUS_TEMP = w = STATUS (com 
+                            nibbles invertidos)
+                      00070         
+                      00071 ; --- Final do salvamento de contexto ---
+                      00072 
+0008   1D0B           00073         btfss           INTCON,T0IF                                     ; Testa se T0IF setou, se sim, p
+                            ula uma linha
+0009   2814           00074         goto            exit_ISR                                        ; Se não, saí da interrupção
+000A   110B           00075         bcf                     INTCON,T0IF                                     ; Limpa flag T0IF, para 
+                            uma nova interrupção
+000B   3000           00076         movlw           D'0'                                            ; w = D'10'
+000C   0081           00077         movwf           TMR0                                            ; Recarrega TMR0 com 10d
+                      00078         
+000D   0BA2           00079         decfsz          cont,F                                          ; Decrementa cont e testa se che
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            gou a zero, se sim, pula uma linha
+000E   2814           00080         goto            exit_ISR                                        ; Se não, saí da interrupção
+                      00081         
+000F   3080           00082         movlw           D'128'                                          ; w = 6d
+0010   00A2           00083         movwf           cont                                            ; Recarrega cont com 6d
+                      00084         
+0011   1185           00085         bcf                     led1                                            ; Apaga led1
+0012   128B           00086         bcf                     INTCON,T0IE                                     ; Desabilita a interrupç
+                            ão do timer0
+0013   1505           00087         bsf                     led2                                            ; Liga led2
+                      00088         
+                      00089 ; --- Recupera contexto ---
+                      00090 
+0014                  00091 exit_ISR:
+                      00092 
+0014   0E21           00093         swapf           STATUS_TEMP,w                           ; w = STATUS_TEMP (nibbles invertidos) =
+                             STATUS (original)
+0015   0083           00094         movwf           STATUS                                          ; STATUS = w = STATUS (original)
+0016   0EA0           00095         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+0017   0E20           00096         swapf           W_TEMP,w                                        ; w = W_TEMP = w (original)
+                      00097         
+0018   0009           00098         retfie
+                      00099         
+                      00100 ; --- Fim da interrupção
+                      00101         
+                      00102         
+0019                  00103 inicio:
+                      00104 
+0019   1283           00105         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+001A   3007           00106         movlw           H'07'                                           ; w = 07h
+001B   009F           00107         movwf           CMCON                                           ; CMCON = 07h, desabilita os com
+                            paradores internos
+001C   3080           00108         movlw           H'80'                                           ; w = 'A0'
+001D   008B           00109         movwf           INTCON                                          ; INTCON = A0h, habilita interru
+                            pção global e desabilita a interrupção do timer0
+001E   1683           00110         bank1                                                                   ; Seleciona o banco 1 de
+                             memória
+001F   3086           00111         movlw           H'86'                                           ; w = 86h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0020   0081           00112         movwf           OPTION_REG                                      ; OPTION_REG = 86h, desabilita o
+                            s pull-ups internos, associa o prescaler do timer 0 e configura para 1:128
+0021   30F3           00113         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0022   0085           00114         movwf           TRISA                                           ; TRISA = F3h, configura RA3 e R
+                            A2 como saídas digital
+0023   30FF           00115         movlw           H'FF'                                           ; w = FFh
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0024   0086           00116         movwf           TRISB                                           ; TRISB = FFh, configura todo po
+                            rtb como entrada digital
+0025   1283           00117         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0026   3000           00118         movlw           D'0'                                            ; w = 10d
+0027   0081           00119         movwf           TMR0                                            ; TMR0 inicia sua contagem em 10
+                            d
+0028   1185           00120         bcf                     led1                                            ; Inicia led1 em Low
+0029   1105           00121         bcf                     led2                                            ; Inicia led2 em Low
+002A   3080           00122         movlw           D'128'                                          ; w = 6d
+002B   00A2           00123         movwf           cont                                            ; cont = 6d
+                      00124         
+                      00125         
+002C                  00126 loop:                                                                           ; Cria loop infinito
+                      00127 
+                      00128 
+002C   1C06           00129         btfss           botao1                                          ; Testa se botao1 foi pressionad
+                            o, se foi, NÃO pula uma linha
+002D   282F           00130         goto            acende_Led1                                     ; Desvia para label acende_Led1
+                      00131 
+002E   282C           00132         goto            loop                                            ; Desvia para label loop        
+                             
+                      00133         
+002F                  00134 acende_Led1:
+                      00135 
+002F   1585           00136         bsf                     led1                                            ; Liga led1
+0030   1105           00137         bcf                     led2                                            ; Apaga led2
+0031   168B           00138         bsf                     INTCON,T0IE                                     ; Habilita a interrupção
+                             do timer0
+                      00139         
+0032   282C           00140         goto            loop                                            ; Desvia para loop infinito
+                      00141         
+Warning[205]: Found directive in column 1. (end)
+                      00142 end
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  5
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51               TEMPORIZADORLED.ASM   8-25-2020  22:13:42         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+acende_Led1                       0000002F
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,0
+botao2                            PORTB,1
+cont                              00000022
+exit_ISR                          00000014
+inicio                            00000019
+led1                              PORTA,3
+led2                              PORTA,2
+loop                              0000002C
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXX-------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    48
+Program Memory Words Free:  2000
+
+
+Errors   :     0
+Warnings :     1 reported,     0 suppressed
+Messages :     3 reported,     0 suppressed
+
+

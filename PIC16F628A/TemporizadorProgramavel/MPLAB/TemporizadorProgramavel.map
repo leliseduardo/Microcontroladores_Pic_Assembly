@@ -1,0 +1,64 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Wed Sep 02 12:12:46 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x000150
+.config_2007_TEMPORIZADORPROGRAMAVEL.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x0000ab      
+                            0x002007    0x002007      
+            170 out of 2182 program addresses used, program memory utilization is 7%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+             apaga_digUni   0x000014    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+               decrementa   0x00008b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                  display   0x00009b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 exit_ISR   0x00002b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                  imprime   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                   inicio   0x000030    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                     loop   0x00004f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 press_B1   0x000052    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 press_B2   0x000074    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+             recarrega_B1   0x00006f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+             recarrega_B2   0x000086    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 testa_B1   0x000057    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 testa_B2   0x000079    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+               timer0_ISR   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+               timer1_ISR   0x00001f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+               timer0_ISR   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+             apaga_digUni   0x000014    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                  imprime   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+               timer1_ISR   0x00001f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 exit_ISR   0x00002b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                   inicio   0x000030    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                     loop   0x00004f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 press_B1   0x000052    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 testa_B1   0x000057    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+             recarrega_B1   0x00006f    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 press_B2   0x000074    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                 testa_B2   0x000079    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+             recarrega_B2   0x000086    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+               decrementa   0x00008b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+                  display   0x00009b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\TemporizadorProgramavel\MPLAB\TemporizadorProgramavel.asm
+
+

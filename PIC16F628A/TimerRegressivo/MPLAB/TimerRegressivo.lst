@@ -1,0 +1,632 @@
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               Este programa tem a função de criar um timer regressivo a partir do uso do display de 7 
+                            segmentos. Para isso, 
+                      00003 ;       utiliza-se o código da aula passada, denominada "Display7Segmentos", fazendo apenas algumas alte
+                            rações.
+                      00004 ;               O programa irá iniciar com a interrupão desligada e, quando um botão for pressionado, o 
+                            display irá decrementar
+                      00005 ;       e, quando chegar a zero, a interrupção será novamente desligada e um led irá se acender.
+                      00006 ;               Este é um princípio de um temporiazador para alguma função prática. O led pode ser um re
+                            lé que controla algum
+                      00007 ;       atuador, que aciona por determinado tempo quando um botão é pressionado ou quando um sensor acio
+                            na ou chega a 
+                      00008 ;       determinado valor. 
+                      00009 ;
+                      00010 ;       *** Timer 1 ***
+                      00011 ;       
+                      00012 ;       Overflow = (65536 - <TMR1H::TMR1L>) * prescaler * ciclo de máquina
+                      00013 ;               
+                      00014 ;                                                                                       Overflow
+                      00015 ;       (65536 - <TMR1H::TMR1L>) =      ---------------------------------
+                      00016 ;                                                                  prescaler * ciclo de máquina 
+                      00017 ;
+                      00018 ;                                                                               Overflow
+                      00019 ;       <TMR1H::TMR1L> = 65536 - ---------------------------------
+                      00020 ;                                                               prescaler * ciclo de máquina
+                      00021 ;
+                      00022 ;                                                          200ms
+                      00023 ;       <TMR1H::TMR1L> = 65536 - --------- = 15536
+                      00024 ;                                                         4 * 1us
+                      00025 ;
+                      00026 ;       <TMR1H::TMR1L> = 15536d = 3CB0h
+                      00027 ;
+                      00028 ;       TMR1H = 3Ch
+                      00029 ;       TMR1L = B0h             
+                      00030 ;
+                      00031 
+                      00032         list            p=16f628a                                               ; Informa o microcontrol
+                            ador utilizado
+                      00033         
+                      00034 ; --- inclusões ---
+                      00035 
+                      00036         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00037         
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00038 ; --- Fuse bits ---
+                      00039 
+2007   3F21           00040         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00041         
+                      00042 ;       Configura clock de 4MHz, habilita o Power Up Timer e habilita o Master Clear
+                      00043 
+                      00044 ; --- Mapeamento de hardware ---
+                      00045 
+                      00046         #define         led1    PORTA,3                         ; Cria mnemônico para led1 em RA3
+                      00047         #define         led2    PORTA,2                         ; Cria mnemônico para led2 em RA2
+                      00048         #define         botao1  PORTB,4                         ; Cria mnemônico para botao1 em RB0
+                      00049 
+                      00050 ; --- Paginação de memória ---
+                      00051 
+                      00052         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00053         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00054         
+                      00055 ; --- Registradores de uso geral ---
+                      00056 
+                      00057         cblock          H'20'                                           ; Início do endereço para config
+                            uração dos registradores de uso geral
+                      00058         
+  00000020            00059         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00060         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00061         cont                                                                    ; Contador para base de 
+                            tempo do timer1
+  00000023            00062         disp                                                                    ; Contador que increment
+                            a o display
+                      00063         
+                      00064         endc                                                                    ; Fim da configuração do
+                            s registradores de uso geral
+                      00065         
+                      00066 ; --- Vetor de Reset ---
+                      00067 
+0000                  00068         org                     H'0000'                                         ; Origem do endereço do 
+                            vetor de Reset
+                      00069         
+0000   281D           00070         goto            inicio                                          ; Desvia para label inicio, prog
+                            rama principal
+                      00071         
+                      00072 ; Vetor de Interrupção
+                      00073 
+0004                  00074         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Reset
+                      00075         
+                      00076 ; -- Salvamento de contexto --
+                      00077 
+0004   00A0           00078         movwf           W_TEMP                                          ; W_TEMP = w
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0005   0E03           00079         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00080         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00081         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00082         
+                      00083 ; -- Fim do salvamento de contexto --
+                      00084 
+                      00085         ; Desenvolvimento da ISR...
+                      00086 
+                      00087 ; -- 200ms --
+                      00088         
+0008   1C0C           00089         btfss           PIR1,TMR1IF                                     ; Testa se a flag TMR1IF setou, 
+                            se sim, pula uma linha
+0009   2818           00090         goto            exit_ISR                                        ; Se não, sai da interrupção
+000A   100C           00091         bcf                     PIR1,TMR1IF                                     ; Limpa a flag TMR1IF
+000B   303C           00092         movlw           H'3C'                                           ; w = 3Ch;
+000C   008F           00093         movwf           TMR1H                                           ; reinicia TMR1H = 3Ch
+000D   30B0           00094         movlw           H'B0'                                           ; w = B0h;
+000E   008E           00095         movwf           TMR1L                                           ; reinicia TMR1L = B0h          
+                                            
+                      00096         
+                      00097 ; -- 200ms --
+                      00098 
+                      00099 ; -- 1s --
+                      00100 
+000F   0AA2           00101         incf            cont,F                                          ; Incrementa cont
+0010   3005           00102         movlw           H'05'                                           ; w = 05h
+0011   0622           00103         xorwf           cont,w                                          ; Faz lógica XOR para testar se 
+                            cont já chegou a 05h, se chegou resulta em 0
+0012   1D03           00104         btfss           STATUS,Z                                        ; Se resultou em zero, a flag Z 
+                            seta e pula uma linha
+0013   2818           00105         goto            exit_ISR                                        ; Se não resultou em zero, cont 
+                            ainda não chegou em 05h e sai da interrupção
+                      00106         
+0014   01A2           00107         clrf            cont                                            ; Limpa cont
+0015   0BA3           00108         decfsz          disp,F                                          ; Decrementa disp e pula uma lin
+                            ha quando chegar a zero
+0016   2818           00109         goto            exit_ISR                                        ; Enquanto disp não chegar a zer
+                            o, sai da interrupção
+0017   1585           00110         bsf                     led1                                            ; Acende led1
+                      00111         
+                      00112 ; -- 1s --
+                      00113         
+                      00114         
+                      00115 ; -- Recuperação de contexto --
+                      00116 
+0018                  00117 exit_ISR:
+                      00118 
+0018   0E21           00119         swapf           STATUS_TEMP,w                           ; w = STATUS (com nibbles reinvertidos, 
+                            isto é, STATUS original)
+0019   0083           00120         movwf           STATUS                                          ; STATUS = STATUS (original)
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+001A   0EA0           00121         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+001B   0E20           00122         swapf           W_TEMP,w                                        ; w = W_TEMP (com nibbles reinve
+                            rtidos, isto é, w original)
+                      00123         
+001C   0009           00124         retfie                                                                  ; Retorna para execução 
+                            principal
+                      00125         
+                      00126 ; -- Fim da recuperação de contexto -- 
+                      00127 
+                      00128 
+                      00129 ; --- Programa principal ---
+                      00130 
+001D                  00131 inicio:
+                      00132 
+001D   1683           00133         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+001E   30F3           00134         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001F   0085           00135         movwf           TRISA                                           ; Configura apenas RA3 e RA2 com
+                            o saídas digitais
+0020   3010           00136         movlw           H'10'                                           ; w = 10h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0021   0086           00137         movwf           TRISB                                           ; Configura todo portb como saíd
+                            a digital, exceto RB4
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0022   140C           00138         bsf                     PIE1,TMR1IE                                     ; Habilita a interrupção
+                             por overflow do timer1
+0023   1283           00139         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0024   3007           00140         movlw           H'07'                                           ; w = 07h
+0025   009F           00141         movwf           CMCON                                           ; Desabilita os comparadores int
+                            ernos
+0026   3040           00142         movlw           H'40'                                           ; w = C0h
+0027   008B           00143         movwf           INTCON                                          ; Desliga a interrupção global e
+                             e habilita a interrupção por periféricos
+0028   3021           00144         movlw           H'21'                                           ; w = 21h
+0029   0090           00145         movwf           T1CON                                           ; liga o timer1, prescaler em 1:
+                            4, incrementa pelo ciclo de máquina 
+002A   30F3           00146         movlw           H'F3'                                           ; w = F3h
+002B   0085           00147         movwf           PORTA                                           ; Inicia RA3 e RA2 em Low
+002C   303C           00148         movlw           H'3C'                                           ; w = 3Ch;
+002D   008F           00149         movwf           TMR1H                                           ; Inicia TMR1H = 3Ch
+002E   30B0           00150         movlw           H'B0'                                           ; w = B0h;
+002F   008E           00151         movwf           TMR1L                                           ; Inicia TMR1L = B0h
+0030   01A2           00152         clrf            cont
+0031   300F           00153         movlw           H'0F'                                           ; w = 0Fh
+0032   00A3           00154         movwf           disp                                            ; Inicia disp = 0Fh
+                      00155         
+                      00156         
+                      00157 ; --- Loop infinito ---
+                      00158 
+0033                  00159 loop:                                                                           ; Cria loop infinito
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00160                 
+0033   1A06           00161         btfsc           botao1                                          ; Testa se botao1 foi pressionad
+                            o, se foi, pula uma linha
+0034   2837           00162         goto            auxiliar                                        ; Se não foi pressionado, desvia
+                             para label auxiliar
+0035   178B           00163         bsf                     INTCON,GIE                                      ; Liga a interrupção glo
+                            bal
+0036   1185           00164         bcf                     led1                                            ; Apaga led1
+                      00165         
+0037                  00166 auxiliar:
+                      00167 
+0037   204E           00168         call            adiciona                                        ; Desvia para label adiciona
+0038   1985           00169         btfsc           led1                                            ; Testa se o led1 está ligado, s
+                            e NÃO estiver, pula uma linha
+0039   2051           00170         call            encerra                                         ; Se led1 estiver ligado, encerr
+                            a o programa
+                      00171                 
+003A   2833           00172         goto            loop                                            ; Desvia para loop infinito
+                      00173         
+                      00174 ; --- Sub Rotinas ---
+                      00175 
+003B                  00176 display:
+                      00177 
+003B   300F           00178         movlw           H'0F'                                           ; w = H'0F', cria a máscara para
+                             o contador disp
+003C   0523           00179         andwf           disp,w                                          ; Faz lógica AND entra w e disp 
+                            e o resultado são os bits do nibble menos
+                      00180                                                                                         ; significativo,
+                             guardado em w. O resultado varia de 0 a Fh
+003D   0782           00181         addwf           PCL,F                                           ; Adiciona em PCL o valor de 0 a
+                             Fh do nibble menos sig. de disp, fazendo com
+                      00182                                                                                         ; que haja um de
+                            svio condicional para "disp" comandos a frente
+                      00183         
+                      00184         ; Display         EDC.BAFG
+                      00185                 
+003E   34EE           00186         retlw           B'11101110'                                     ; Retorna o valor binário que es
+                            creve 0 para a subrotina adiciona
+003F   3428           00187         retlw           B'00101000'                                     ; Retorna o valor binário que es
+                            creve 1 para a subrotina adiciona
+0040   34CD           00188         retlw           B'11001101'                                     ; Retorna o valor binário que es
+                            creve 2 para a subrotina adiciona
+0041   346D           00189         retlw           B'01101101'                                     ; Retorna o valor binário que es
+                            creve 3 para a subrotina adiciona
+0042   342B           00190         retlw           B'00101011'                                     ; Retorna o valor binário que es
+                            creve 4 para a subrotina adiciona
+0043   3467           00191         retlw           B'01100111'                                     ; Retorna o valor binário que es
+                            creve 5 para a subrotina adiciona
+0044   34E7           00192         retlw           B'11100111'                                     ; Retorna o valor binário que es
+                            creve 6 para a subrotina adiciona
+0045   342C           00193         retlw           B'00101100'                                     ; Retorna o valor binário que es
+                            creve 7 para a subrotina adiciona
+0046   34EF           00194         retlw           B'11101111'                                     ; Retorna o valor binário que es
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            creve 8 para a subrotina adiciona
+0047   346F           00195         retlw           B'01101111'                                     ; Retorna o valor binário que es
+                            creve 9 para a subrotina adiciona
+0048   34AF           00196         retlw           B'10101111'                                     ; Retorna o valor binário que es
+                            creve A para a subrotina adiciona
+0049   34E3           00197         retlw           B'11100011'                                     ; Retorna o valor binário que es
+                            creve b para a subrotina adiciona
+004A   34C6           00198         retlw           B'11000110'                                     ; Retorna o valor binário que es
+                            creve C para a subrotina adiciona
+004B   34E9           00199         retlw           B'11101001'                                     ; Retorna o valor binário que es
+                            creve d para a subrotina adiciona
+004C   34C7           00200         retlw           B'11000111'                                     ; Retorna o valor binário que es
+                            creve E para a subrotina adiciona
+004D   3487           00201         retlw           B'10000111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+                      00202         
+                      00203         ;       Nesta subrotina, a máscara em w, através da lógica AND, obtém o valor de 0 a Fh do nibbl
+                            e menos significativo de
+                      00204         ; disp e adiciona este valor no registrador PCL. O PCL desvia para "disp" comandos a frente. Log
+                            o, se foi adicionado
+                      00205         ; 0 no PCL, ele vai para o próximo comando e retorna o binário que escreve zero no display, se f
+                            or adicionado 8 no 
+                      00206         ; PCL, ele vai para o nono comando e retorna o valor binário que imprime 8 no display, e assim p
+                            or diante.;     
+                      00207         
+                      00208 
+004E                  00209 adiciona:       
+                      00210         
+004E   203B           00211         call            display                                         ; Desvia para subrotina display
+004F   0086           00212         movwf           PORTB                                           ; PORTB = w, sendo que w é o val
+                            or retornado pela subrotina display
+                      00213         
+0050   0008           00214         return                                                                  ; Retorna para o loop in
+                            finito
+                      00215         
+                      00216         
+0051                  00217 encerra:        
+                      00218         
+0051   138B           00219         bcf                     INTCON,GIE                                      ; Desliga interupção glo
+                            bal
+0052   300F           00220         movlw           H'0F'                                           ; w = 0Fh
+0053   00A3           00221         movwf           disp                                            ; Reinicia disp em 0Fh
+                      00222         
+0054   0008           00223         return                                                                  ; Retorna para loop infi
+                            nito
+                      00224         
+                      00225         end                                                                             ; Fim do program
+                            a
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51               TIMERREGRESSIVO.ASM   9-1-2020  19:14:49         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+adiciona                          0000004E
+auxiliar                          00000037
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,4
+cont                              00000022
+disp                              00000023
+display                           0000003B
+encerra                           00000051
+exit_ISR                          00000018
+inicio                            0000001D
+led1                              PORTA,3
+led2                              PORTA,2
+loop                              00000033
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXX----------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    82
+Program Memory Words Free:  1966
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     3 reported,     0 suppressed
+
+

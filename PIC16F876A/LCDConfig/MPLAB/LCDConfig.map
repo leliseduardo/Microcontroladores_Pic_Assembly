@@ -1,0 +1,54 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Thu Sep 10 20:25:43 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x000098
+ .config_2007_LCDCONFIG.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x00004f      
+                            0x002007    0x002007      
+            78 out of 8454 program addresses used, program memory utilization is 0%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+               BUSY_CHECK   0x00002e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                   _500ms   0x000040    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                     aux1   0x000042    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                     aux2   0x000044    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+              lcd_command   0x000025    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                 lcd_init   0x00001c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                lcdnobusy   0x00003a    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                     loop   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000008    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                   inicio   0x00000d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                     loop   0x00001b    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                 lcd_init   0x00001c    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+              lcd_command   0x000025    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+               BUSY_CHECK   0x00002e    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                lcdnobusy   0x00003a    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                   _500ms   0x000040    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                     aux1   0x000042    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+                     aux2   0x000044    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F876A\LCDConfig\MPLAB\LCDConfig.asm
+
+

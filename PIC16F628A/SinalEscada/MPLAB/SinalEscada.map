@@ -1,0 +1,40 @@
+MPLINK 4.49, Linker
+Linker Map File - Created Thu Sep 03 23:28:24 2020
+
+                                 Section Info
+                  Section       Type    Address   Location Size(Bytes)
+                ---------  ---------  ---------  ---------  ---------
+                   .org_0       code   0x000000    program   0x000000
+                   .org_1       code   0x000000    program   0x000002
+                   .org_2       code   0x000004    program   0x00005c
+.config_2007_SINALESCADA.O       code   0x002007    program   0x000002
+
+
+
+                              Program Memory Usage 
+                               Start         End      
+                           ---------   ---------      
+                            0x000000    0x000000      
+                            0x000004    0x000031      
+                            0x002007    0x002007      
+            48 out of 2182 program addresses used, program memory utilization is 2%
+
+
+
+                              Symbols - Sorted by Name
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\SinalEscada\MPLAB\SinalEscada.asm
+                   inicio   0x00001d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\SinalEscada\MPLAB\SinalEscada.asm
+                     loop   0x000031    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\SinalEscada\MPLAB\SinalEscada.asm
+
+
+
+                              Symbols - Sorted by Address
+                     Name    Address   Location    Storage File                     
+                ---------  ---------  ---------  --------- ---------                
+                 exit_ISR   0x000018    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\SinalEscada\MPLAB\SinalEscada.asm
+                   inicio   0x00001d    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\SinalEscada\MPLAB\SinalEscada.asm
+                     loop   0x000031    program     static C:\Users\eleli\Documents\Cursos\Curso de Pic\Assembly Pic\PIC16F628A\SinalEscada\MPLAB\SinalEscada.asm
+
+

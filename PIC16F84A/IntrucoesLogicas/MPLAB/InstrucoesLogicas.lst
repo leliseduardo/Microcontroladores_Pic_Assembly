@@ -1,0 +1,259 @@
+MPASM  5.51             INSTRUCOESLOGICAS.ASM   8-20-2020  9:07:20         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F84A                       Clock = 4MHz            Ciclo de máquina = 1us  
+                      00003 ;
+                      00004 ;               Este programa tem o objetivo de demonstrar as intruções lógicas em Assembly. As intruçõe
+                            s lógicas tem a função
+                      00005 ;       de, bit a bit, fazer as operações lógicas entre os registradores. A tabela com cada intrução est
+                            ará no fim do pro-
+                      00006 ;       grama.
+                      00007 ;
+                      00008 ;
+                      00009 
+                      00010 
+Warning[205]: Found directive in column 1. (list)
+                      00011 list p=16f84a ; Informa o microcontrolador utilizado
+                      00012         
+                      00013         ; --- Arquivos utilizados no projeto
+                      00014         #include <p16f84a.inc>  ; Inclui o microcontrolador utilizado
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F84A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00208         LIST
+                      00015         
+                      00016         ; --- Fuse bits ---
+2007   3FF1           00017         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _CP_OFF       ; Configura os fuses do microcontrolador
+                            . Clock de 4MHz,
+                      00018                                                                                                         
+                                    ; Watchdog timer desligado, PowerUp Timer ligado e Code Protect
+                      00019                                                                                                         
+                                    ; desligado
+                      00020                                                                                                         
+                                    
+                      00021         ; --- Paginação de memória ---
+                      00022         #define         bank0   bcf             STATUS,RP0              ; Cria um mnemônico para o banco
+                             0 de memória
+                      00023         #define         bank1   bsf             STATUS,RP0              ; Cria um mnemônico para o banco
+                             1 de memória
+                      00024         
+                      00025         ; --- Saídas ---
+                      00026         #define         led1    PORTB,RB7       ; Cria um mnemônico para a saída RB7
+                      00027         #define         led2    PORTB,RB6       ; Cria um menmônico para a saída RB6
+                      00028         
+                      00029         ; --- Registradores de uso geral ---
+                      00030         cblock          H'0C'           ; Inicio da memória dos registradores de uso geral
+                      00031         
+  0000000C            00032         register1               ;       Endereço H'0C'
+  0000000D            00033         register2               ;       Endereço H'0D'
+                      00034         
+                      00035         endc
+MPASM  5.51             INSTRUCOESLOGICAS.ASM   8-20-2020  9:07:20         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00036         
+                      00037         ;
+                      00038         ;       register1       equ             H'0C'
+                      00039         ;       register2       equ             H'0D'
+                      00040         ;
+                      00041         ;       Esta é uma das formas de se declarar os registradores de uso geral
+                      00042         ;
+                      00043         
+                      00044         
+                      00045         
+                      00046         
+                      00047         ; --- Vetor de Reset ---
+0000                  00048         org             H'0000'         ; Informa o endereço do vetor Reset no banco de memória
+                      00049         
+0000   2805           00050         goto inicio     ; Desvia o programa para a label inicio
+                      00051         
+                      00052         ; --- Vetor de interrupção
+0004                  00053         org                     H'0004'         ; Informa o endereço do vetor de interrupção no banco de
+                             memória
+                      00054         
+0004   0009           00055         retfie          ; Retorna a execução para o local onde o programa foi interrompido
+                      00056         
+                      00057         
+                      00058         ; --- Programa principal ---
+Warning[207]: Found label after column 1. (inicio)
+0005                  00059         inicio:
+                      00060         
+0005   1683           00061                 bank1                   ; Seleciona o banco 1 de memória
+0006   303F           00062                 movlw   H'3F'   ; Move o valor 3F para o registrador w
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0007   0086           00063                 movwf   TRISB   ; Move o valor de w para o registrador TRISB e configura RB7 e RB6 como 
+                            saídas digitais
+0008   1283           00064                 bank0                   ; Seleciona o banco 0 de memória        
+0009   303F           00065                 movlw   H'3F'   ; Move o valor 3F para w
+000A   0086           00066                 movwf   PORTB   ; Move o valor de w para PORTB e inicia as portas RB7 e RB6 em Low
+000B   018C           00067                 clrf    register1       ; Inicia o registrador de uso geral register1 todo em Low
+000C   018D           00068                 clrf    register2       ; Inicia o registrador de uso geral register2 todo em Low
+                      00069                 
+Warning[207]: Found label after column 1. (loop)
+000D                  00070                 loop:                   ; Cria a label loop, que é a label do loop infinito
+                      00071                 
+000D   303E           00072                         movlw   B'00111110'     ; Move o valor binário para W
+000E   39EA           00073                         andlw   B'11101010'     ; W and B'11101010'
+                      00074                         
+000F   048C           00075                         iorwf   register1,f ; register1 = W or register1
+                      00076                         
+0010   280D           00077                 goto loop               ; Desvia o programa para a label loop
+                      00078                 
+                      00079                         
+                      00080                         
+                      00081                 end
+MPASM  5.51             INSTRUCOESLOGICAS.ASM   8-20-2020  9:07:20         PAGE  3
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DC                                00000001
+EEADR                             00000009
+EECON1                            00000088
+EECON2                            00000089
+EEDATA                            00000008
+EEIE                              00000006
+EEIF                              00000004
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_PD                            00000003
+NOT_RBPU                          00000007
+NOT_TO                            00000004
+OPTION_REG                        00000081
+PCL                               00000002
+PCLATH                            0000000A
+PORTA                             00000005
+PORTB                             00000006
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+TMR0                              00000001
+MPASM  5.51             INSTRUCOESLOGICAS.ASM   8-20-2020  9:07:20         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR0IE                            00000005
+TMR0IF                            00000002
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+Z                                 00000002
+_CONFIG                           00002007
+_CP_OFF                           00003FFF
+_CP_ON                            0000000F
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F84A                          00000001
+__DEBUG                           1
+bank0                             bcf             STATUS,RP0
+bank1                             bsf             STATUS,RP0
+inicio                            00000005
+led1                              PORTB,RB7
+led2                              PORTB,RB6
+loop                              0000000D
+register1                         0000000C
+MPASM  5.51             INSTRUCOESLOGICAS.ASM   8-20-2020  9:07:20         PAGE  5
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+register2                         0000000D
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX X--------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    14
+Program Memory Words Free:  1010
+
+
+Errors   :     0
+Warnings :     3 reported,     0 suppressed
+Messages :     1 reported,     0 suppressed
+
+

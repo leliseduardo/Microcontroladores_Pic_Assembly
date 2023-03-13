@@ -1,0 +1,726 @@
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               Este programa tem o objetivo de fazer a leitura do canal 0 do conversor AD, com justific
+                            ação a direita. Por isso,
+                      00003 ;       é feita uma manipulação com os registradores mais e menos significativos do conversor AD para se
+                             conseguir manipular
+                      00004 ;       o valor lido. 
+                      00005 ;               Quando se justifica a leitura a direita, o valor lido fica da seguinte forma:
+                      00006 ;               
+                      00007 ;               ADRESH                          ADRESL                                  |               
+                                    ADRESH          ADRESL  } Caso a leitura fosse justificada
+                      00008 ;      00000011                    11111111                                     |                  11111
+                            111        11000000 } a esquerda
+                      00009 ;
+                      00010 ;               Os bits em 1 são os valor lidos, sendo que os dois mais significativos ficam em ADRESH e
+                             os menos significativos
+                      00011 ;       em ADRESL.
+                      00012 ;               Para se ter o valor lido, desprezando os dois bits menos significativos, manipula-se o v
+                            alor para ficar 
+                      00013 ;       armazenado todo em um só registrador de 8 bits.
+                      00014 ;               Para isso, rotaciona-se 6 vezes os bits lidos em ADRESH para esquerda, enquanto rotacion
+                            a-se 2 vezes os bits lidos
+                      00015 ;       em ADRESL para a direita, resultando em:
+                      00016 ;
+                      00017 ;               ADRESH                          ADRESL
+                      00018 ;      11000000                    00111111
+                      00019 ;
+                      00020 ;               Somando estes dois valores e armazenando em uma variável, que foi chamada de adc, obtém-
+                            se:
+                      00021 ;
+                      00022 ;               adc = ADRESH + ADRESL = 111111111
+                      00023 ;
+                      00024 ;               No código, quando se faz a rotação dos bits, coloca-se a flag C do registrador STATUS em
+                             0. Isso quer dizer que
+                      00025 ;       o carry é zero. O resultado disso é que a rotação a direita ou esquerda vira, na verdade, um shi
+                            ft right ou left,
+                      00026 ;       respectivamente. O carry em zero não permite que os bits dêem a volta no registrador, e sim que 
+                            somente se movam para
+                      00027 ;       a direção desejada. Caso o carry não fosse colocado em zero, e houvesse a rotação pura ao invés 
+                            do shift, o registra-
+                      00028 ;       dor ADRESL, neste exemplo, resultaria:
+                      00029 ;               
+                      00030 ;               ADRESL 
+                      00031 ;          11111111
+                      00032 ;                       
+                      00033 ;               ADRESL Rotacionado 2x à direita com carry igual a 1
+                      00034 ;          11111111 , isto é, os bits deram a volta no registrador
+                      00035 ;
+                      00036 ;               ADRESL Rotacionado 2x à direita com carry igual a 0
+                      00037 ;          00111111 , isto é, os bits apenas se moveram para direita, sem dar a volta no registrador ADR
+                            ESL
+                      00038 ;
+                      00039 ;               O programa consiste basicamente em usar uma subrotina para configurar os registradores d
+                            o ADC, uma outra sub-
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00040 ;       rotina para ler o ADC e rotacionar o valor lido nos registradores mais e menos significativos, c
+                            olocando o resultado
+                      00041 ;       da soma dos dois na variável adc e, no loop infinito chamar a subrotina de leitura. No loop infi
+                            nito, o resultado da
+                      00042 ;       leitura contido na variável adc é passado ao PORTB.  
+                      00043 ;               
+                      00044 ;               No debug o programa funcionou como esperado.
+                      00045 ;
+                      00046 
+                      00047         list p=16f876a                                                  ; Informa o microcontrolador uti
+                            lizado
+                      00048         
+                      00049         
+                      00050 ; --- Documentação ---
+                      00051 
+                      00052 
+                      00053         #include        <p16f876a.inc>                          ; Inclui o arquivo que contém os registr
+                            adores do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F876A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00524         LIST
+                      00054         
+                      00055         
+                      00056 ; --- Fuse bits ---
+                      00057 
+                      00058         
+2007   3F31           00059         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _BOREN_OFF & _LVP_OFF  & _CP_OFF & _CPD_OFF
+                      00060         
+                      00061         ; Configura clock  4MHz, liga o Power Up Timer e desliga o Master Clear
+                      00062         
+                      00063         
+                      00064 ; --- Paginação de memória ---
+                      00065 
+                      00066         
+                      00067         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00068         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00069         
+                      00070         
+                      00071 ; --- Mapeamento de hardware ---
+                      00072 
+                      00073 
+                      00074         
+                      00075         
+                      00076 ; --- Registradores de uso geral ---
+                      00077 
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00078 
+                      00079         cblock          H'20'                                           ; Endereço de inicio para config
+                            uração de registradores de uso geral
+                      00080         
+  00000020            00081         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00082         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00083         adc                                                                             ; Armazena a lei
+                            tura de ADC
+                      00084         
+                      00085         endc                                                                    ; Fim da configuração de
+                             registradores de uso geral
+                      00086         
+Warning[207]: Found label after column 1. (cont1)
+  00000023            00087         cont1           equ             H'23'                           ; Contador auxiliar no banco 0 d
+                            e memória
+Warning[207]: Found label after column 1. (cont2)
+  000000A1            00088         cont2           equ             H'A1'                           ; Contador auxiliar no banco 1 d
+                            e memória
+                      00089         
+                      00090 ; --- Vetor de Reset ---
+                      00091 
+                      00092         
+0000                  00093         org                     H'0000'                                         ; Endereço de origem do 
+                            vetor de Reset
+                      00094         
+0000   280D           00095         goto            inicio                                          ; Desvia para o programa princip
+                            al      
+                      00096         
+                      00097         
+                      00098 ; --- Vetor de Interrupção ---
+                      00099 
+                      00100         
+0004                  00101         org                     H'0004'                                         ; Endereço de origem do 
+                            vetor de Interrupção
+                      00102         
+                      00103 ; -- Salvamento de contexto --
+                      00104 
+0004   00A0           00105         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00106         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00107         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00108         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00109         
+                      00110 ; -- Fim do salvamento de contexto
+                      00111 
+                      00112         ; Desenvolvimento da ISR...
+                      00113         
+                      00114         
+                      00115 ; -- Recuperação de contexto --
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00116 
+0008                  00117 exit_ISR:
+                      00118 
+0008   0E21           00119         swapf           STATUS_TEMP,w                           ; w = STATUS (original)
+0009   0083           00120         movwf           STATUS                                          ; STATUS = STATUS (original)
+000A   0EA0           00121         swapf           W_TEMP,F                                        ; W_TEMP = w (com nibbles invert
+                            idos)
+000B   0E20           00122         swapf           W_TEMP,w                                        ; W_TEMP = w (original)
+                      00123         
+000C   0009           00124         retfie                                                                  ; Retorna para o endereç
+                            o que estava quando ocorreu a interrupção
+                      00125         
+                      00126 ; -- Fim da recuperação de contexto --
+                      00127 
+                      00128 
+                      00129 ; --- Programa principal ---
+                      00130 
+000D                  00131 inicio:                                                                         ; Cria label do programa
+                             principal
+                      00132 
+000D   1683           00133         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+000E   30FF           00134         movlw           H'FF'                                           ; w = FF
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000F   0085           00135         movwf           TRISA                                           ; Configura todo PORTA como entr
+                            ada
+0010   3000           00136         movlw           H'00'                                           ; w = 00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0011   0086           00137         movwf           TRISB                                           ; Configura todo PORTB como saíd
+                            a digital
+0012   202E           00138         call            configura_ADC                           ; Chama subrotina configura_ADC
+                      00139 
+                      00140 
+                      00141 ; -- Loop infinito --
+                      00142 
+0013                  00143 loop:                                                                           ; Cria label para loop i
+                            nfinito
+                      00144 
+0013   2017           00145         call            leitura_ADC                                     ; Chama a subrotina leitura_ADC
+0014   0822           00146         movf            adc,w                                           ; w = adc
+0015   0086           00147         movwf           PORTB                                           ; PORTB = w = adc       
+                      00148 
+0016   2813           00149         goto            loop                                            ; Desvia para loop infinito
+                      00150         
+                      00151         
+                      00152         
+                      00153 ; --- SubRotinas ---
+                      00154 
+0017                  00155 leitura_ADC:                                                            ; Cria subrotina para leitura do
+                             ADC
+                      00156 
+0017   1283           00157         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0018   151F           00158         bsf                     ADCON0,2                                        ; Começa a leitura do ad
+                            c
+                      00159         
+0019                  00160 espera_leitura:
+                      00161 
+0019   191F           00162         btfsc           ADCON0,2                                        ; Testa se a flag GO_DONE já lim
+                            pou, se já, pula uma linha
+001A   2819           00163         goto            espera_leitura                          ; Se não limpou, desvia para label esper
+                            a_leitura
+                      00164         
+001B   3006           00165         movlw           H'06'                                           ; w = 06h
+001C   00A3           00166         movwf           cont1                                           ; cont1 = 06h
+                      00167         
+001D                  00168 rotaciona:                                                                      ; Cria label rotaciona
+                      00169 
+001D   1003           00170         bcf                     STATUS,C                                        ; Limpa flag C de STATUS
+001E   0D9E           00171         rlf                     ADRESH,F                                        ; Rotaciona conteúdo de 
+                            ADRESH para esquerda
+Message[305]: Using default destination of 1 (file).
+001F   0BA3           00172         decfsz          cont1                                           ; Decrementa cont1 e testa se já
+                             chegou a zero, se chegou, pula uma linha
+0020   281D           00173         goto            rotaciona                                       ; Se não chegou a zero, desvia p
+                            ara label rotaciona
+                      00174         
+0021   081E           00175         movf            ADRESH,w                                        ; w = ADRESH
+0022   00A2           00176         movwf           adc                                                     ; adc = w = ADRESH
+                      00177         
+                      00178         
+0023   1683           00179         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0024   3002           00180         movlw           H'02'                                           ; w = 02h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0025   00A1           00181         movwf           cont2                                           ; cont2 = 02h
+                      00182         
+                      00183         
+0026                  00184 rotaciona2:                                                                     ; Cria label rotaciona2
+                      00185 
+0026   1003           00186         bcf                     STATUS,C                                        ; Limpa flag C de STATUS
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0027   0C9E           00187         rrf                     ADRESL,F                                        ; Rotaciona conteúdo de 
+                            ADRESL para direita
+Message[305]: Using default destination of 1 (file).
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0028   0BA1           00188         decfsz          cont2                                           ; Decrementa cont2 e testa se já
+                             chegou a zero, se chegou, pula uma linha
+0029   2826           00189         goto            rotaciona2                                      ; Se não chegou a zero, desvia p
+                            ara label rotaciona2
+                      00190         
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002A   081E           00191         movf            ADRESL,w                                        ; w = ADRESL
+                      00192         
+002B   1283           00193         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[305]: Using default destination of 1 (file).
+002C   07A2           00194         addwf           adc                                                     ; adc + w = ADRESL + ADR
+                            ESH
+                      00195                 
+                      00196                 
+002D   0008           00197         return                                                                  ; Retorna para o endereç
+                            o onde a subrotina foi chamada
+                      00198 
+                      00199 
+                      00200 
+                      00201 
+                      00202 
+                      00203 
+                      00204 
+002E                  00205 configura_ADC:
+                      00206 
+002E   1683           00207         bank1                                                                   ; Seleciona o banco 1 de
+                             memória
+002F   3080           00208         movlw           H'80'                                           ; w = 80
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0030   009F           00209         movwf           ADCON1                                          ; Justificado a direita, Fosc/8,
+                             todos os pinos analógicos habilitados
+0031   1283           00210         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0032   3041           00211         movlw           H'41'                                           ; w = 41h
+0033   009F           00212         movwf           ADCON0                                          ; Fosc/8, canal 0 de conversão e
+                             liga o conversor AD
+                      00213         
+0034   0008           00214         return                                                                  ; Retorna para endereço 
+                            onde a subrotina foi chamada
+                      00215 
+                      00216 ; --- Fim do programa ---
+                      00217 
+                      00218         end                                                                             ; Final do progr
+                            ama
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ADCON0                            0000001F
+ADCON1                            0000009F
+ADCS0                             00000006
+ADCS1                             00000007
+ADCS2                             00000006
+ADDEN                             00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADRESH                            0000001E
+ADRESL                            0000009E
+BCLIE                             00000003
+BCLIF                             00000003
+BF                                00000000
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCP2CON                           0000001D
+CCP2IE                            00000000
+CCP2IF                            00000000
+CCP2M0                            00000000
+CCP2M1                            00000001
+CCP2M2                            00000002
+CCP2M3                            00000003
+CCP2X                             00000005
+CCP2Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CCPR2                             0000001B
+CCPR2H                            0000001C
+CCPR2L                            0000001B
+CHS0                              00000003
+CHS1                              00000004
+CHS2                              00000005
+CIS                               00000003
+CKE                               00000006
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CKP                               00000004
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000009C
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+CVR0                              00000000
+CVR1                              00000001
+CVR2                              00000002
+CVR3                              00000003
+CVRCON                            0000009D
+CVREN                             00000007
+CVROE                             00000006
+CVRR                              00000005
+D                                 00000005
+DATA_ADDRESS                      00000005
+DC                                00000001
+D_A                               00000005
+D_NOT_A                           00000005
+EEADR                             0000010D
+EEADRH                            0000010F
+EECON1                            0000018C
+EECON2                            0000018D
+EEDATA                            0000010C
+EEDATH                            0000010E
+EEIE                              00000004
+EEIF                              00000004
+EEPGD                             00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GCEN                              00000007
+GIE                               00000007
+GO                                00000002
+GO_DONE                           00000002
+GO_NOT_DONE                       00000002
+I2C_DATA                          00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BO                            00000000
+NOT_BOR                           00000000
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_DONE                          00000002
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_RBPU                          00000007
+NOT_RC8                           00000006
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+NOT_TX8                           00000006
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OERR                              00000001
+OPTION_REG                        00000081
+P                                 00000004
+PCFG0                             00000000
+PCFG1                             00000001
+PCFG2                             00000002
+PCFG3                             00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PEN                               00000002
+PIE1                              0000008C
+PIE2                              0000008D
+PIR1                              0000000C
+PIR2                              0000000D
+PORTA                             00000005
+PORTB                             00000006
+PORTC                             00000007
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RC0                               00000000
+RC1                               00000001
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RC8_9                             00000006
+RC9                               00000006
+RCD8                              00000000
+RCEN                              00000003
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+READ_WRITE                        00000002
+RP0                               00000005
+RP1                               00000006
+RSEN                              00000001
+RX9                               00000006
+RX9D                              00000000
+R_NOT_W                           00000002
+R_W                               00000002
+S                                 00000003
+SEN                               00000000
+SMP                               00000007
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+SSPADD                            00000093
+SSPBUF                            00000013
+SSPCON                            00000014
+SSPCON2                           00000091
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPOV                             00000006
+SSPSTAT                           00000094
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1INSYNC                          00000002
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T1OSCEN                           00000003
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRISC                             00000087
+TRISC0                            00000000
+TRISC1                            00000001
+TRISC2                            00000002
+TRISC3                            00000003
+TRISC4                            00000004
+TRISC5                            00000005
+TRISC6                            00000006
+TRISC7                            00000007
+TRMT                              00000001
+TX8_9                             00000006
+TX9                               00000006
+TX9D                              00000000
+TXD8                              00000000
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE 12
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+TXSTA                             00000098
+UA                                00000001
+W                                 00000000
+WCOL                              00000007
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_ALL                           00001FFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEBUG_OFF                        00003FFF
+_DEBUG_ON                         000037FF
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_WRT_1FOURTH                      00003BFF
+_WRT_256                          00003DFF
+_WRT_HALF                         000039FF
+_WRT_OFF                          00003FFF
+_XT_OSC                           00003FFD
+__16F876A                         00000001
+__DEBUG                           1
+adc                               00000022
+MPASM  5.51                   CONVERSAOAD.ASM   9-9-2020  10:40:24         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+configura_ADC                     0000002E
+cont1                             00000023
+cont2                             000000A1
+espera_leitura                    00000019
+exit_ISR                          00000008
+inicio                            0000000D
+leitura_ADC                       00000017
+loop                              00000013
+rotaciona                         0000001D
+rotaciona2                        00000026
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXX-----------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    50
+Program Memory Words Free:  8142
+
+
+Errors   :     0
+Warnings :     2 reported,     0 suppressed
+Messages :    10 reported,     0 suppressed
+
+

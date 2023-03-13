@@ -1,0 +1,569 @@
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é utilizar dois canais analógicos do Pic 12F675. Para isso ser
+                            á configurado a flag
+                      00003 ;       CHS0, do registrador ADCON0 para ora ler o canal 0 e ora ler o canal 1.
+                      00004 ;               Como o professor falou e demonstrou, este tipo de comutação pode gerar erros de leitura,
+                             fazendo com que um canal
+                      00005 ;       interfira no outro, pelo motivo, segundo ele, do tempo de aquisição. O professor disse ainda que
+                             este assunto será
+                      00006 ;       abordado nas próximas aulas.
+                      00007 ;
+                      00008 ;               Na simulação e na prática o programa e o circuito funcionaram como esperado. O programa 
+                            apresentou o mesmo erro
+                      00009 ;       demonstrado pelo professor, que consiste em um ADC interferir no outro.
+                      00010 ;
+                      00011 
+                      00012 
+                      00013         list p=12f675                                                   ; Informa o microcontrolador uti
+                            lizado
+                      00014         
+                      00015         
+                      00016 ; --- Documentação ---
+                      00017 
+                      00018 
+                      00019         #include        <p12f675.inc>                           ; Inclui o arquivo que contém os registr
+                            adores do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC12F675 processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00366         LIST
+                      00020         
+                      00021         
+                      00022 ; --- Fuse bits ---
+                      00023 
+                      00024         
+2007   3F84           00025         __config        _INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_ON & _MCLRE_OFF & _BOREN_OFF & _CP_OFF &
+                             _CPD_OFF
+                      00026         
+                      00027         ; Configura clock interno de 4MHz sem saída de clock em GP4, liga o Power Up Timer e liga o Mast
+                            er Clear
+                      00028         
+                      00029         
+                      00030 ; --- Paginação de memória ---
+                      00031 
+                      00032         
+                      00033         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00034         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00035         
+                      00036         
+                      00037 ; --- Mapeamento de hardware ---
+                      00038 
+                      00039 
+                      00040         #define         led1            GPIO,5                          ; Cria mnemônico para led em GP5
+                      00041         #define         led2            GPIO,4                          ; Cria mnemônico para led em GP5
+                      00042         
+                      00043 ; --- Registradores de uso geral ---
+                      00044 
+                      00045 
+                      00046         cblock          H'20'                                           ; Endereço de inicio para config
+                            uração de registradores de uso geral
+                      00047         
+  00000020            00048         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00049         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00050         tempo                                                                   ; Auxilia a criação de u
+                            m delay
+  00000023            00051         adc                                                                             ; Armazena a lei
+                            tura de ADC
+                      00052         
+                      00053         endc                                                                    ; Fim da configuração de
+                             registradores de uso geral
+                      00054         
+                      00055         
+                      00056 ; --- Vetor de Reset ---
+                      00057 
+                      00058         
+0000                  00059         org                     H'0000'                                         ; Endereço de origem do 
+                            vetor de Reset
+                      00060         
+0000   280D           00061         goto            inicio                                          ; Desvia para o programa princip
+                            al      
+                      00062         
+                      00063         
+                      00064 ; --- Vetor de Interrupção ---
+                      00065 
+                      00066         
+0004                  00067         org                     H'0004'                                         ; Endereço de origem do 
+                            vetor de Interrupção
+                      00068         
+                      00069 ; -- Salvamento de contexto --
+                      00070 
+0004   00A0           00071         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00072         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00073         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00074         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00075         
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00076 ; -- Fim do salvamento de contexto
+                      00077 
+                      00078         ; Desenvolvimento da ISR...
+                      00079         
+                      00080         
+                      00081 ; -- Recuperação de contexto --
+                      00082 
+0008                  00083 exit_ISR:
+                      00084 
+0008   0E21           00085         swapf           STATUS_TEMP,w                           ; w = STATUS (original)
+0009   0083           00086         movwf           STATUS                                          ; STATUS = STATUS (original)
+000A   0EA0           00087         swapf           W_TEMP,F                                        ; W_TEMP = w (com nibbles invert
+                            idos)
+000B   0E20           00088         swapf           W_TEMP,w                                        ; W_TEMP = w (original)
+                      00089         
+000C   0009           00090         retfie                                                                  ; Retorna para o endereç
+                            o que estava quando ocorreu a interrupção
+                      00091         
+                      00092 ; -- Fim da recuperação de contexto --
+                      00093 
+                      00094 
+                      00095 ; --- Programa principal ---
+                      00096 
+000D                  00097 inicio:
+                      00098 
+000D   1683           00099         bank1                                                                   ; Seleciona o banco 1 de
+                             memória
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000E   1285           00100         bcf                     TRISIO,5                                        ; Configura GP5 como saí
+                            da digital
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000F   1205           00101         bcf                     TRISIO,4                                        ; Configura GP4 como saí
+                            da digital
+0010   3061           00102         movlw           H'61'                                           ; w = 61h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0011   009F           00103         movwf           ANSEL                                           ; Configura AD Clock em Fosc/64 
+                            e habilita as entradas analógicas
+0012   1283           00104         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0013   3007           00105         movlw           H'07'                                           ; w = 07h
+0014   0099           00106         movwf           CMCON                                           ; Desablita os comparadores inte
+                            rnos
+0015   141F           00107         bsf                     ADCON0,ADON                                     ; Liga o conversor AD e 
+                            configura o canal 0 de conversão AD
+0016   1285           00108         bcf                     led1                                            ; Inicia led1 em Low
+0017   1205           00109         bcf                     led2                                            ; Inicia led2 em Low
+0018   3080           00110         movlw           H'80'                                           ; w = 80h
+0019   00A3           00111         movwf           adc                                                     ; adc = 80h 
+001A   301E           00112         movlw           D'30'                                           ; w = 30d
+001B   00A2           00113         movwf           tempo                                           ; tempo = 30d
+                      00114 
+                      00115 ; -- Loop infinito --
+                      00116 
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+001C                  00117 loop:                                                                           ; Cria label para loop i
+                            nfinito
+                      00118         
+001C   111F           00119         bcf                     ADCON0,CHS0                                     ; Seleciona canal 0 do c
+                            onversor AD
+001D   2041           00120         call            leitura_adc                                     ; Chama a subrotina leitura_adc
+001E   0523           00121         andwf           adc,w                                           ; Faz AND entre adc e w, se resu
+                            ltar em zero, seta a flag Z
+001F   1903           00122         btfsc           STATUS,Z                                        ; Testa se Z é zero, se sim, pul
+                            a uma linha
+0020   2823           00123         goto            liga_led1                                       ; Se Z setou, desvia para label 
+                            liga_led1
+0021   1285           00124         bcf                     led1                                            ; Apaga led1
+0022   2824           00125         goto            continua                                        ; Desvia para label continua
+                      00126         
+0023                  00127 liga_led1:
+                      00128 
+0023   1685           00129         bsf                     led1
+                      00130         
+0024                  00131 continua:
+                      00132 
+0024   2046           00133         call            _100us                                          ; Espera 100us
+0025   2046           00134         call            _100us                                          ; Espera 100us
+0026   2046           00135         call            _100us                                          ; Espera 100us
+0027   2046           00136         call            _100us                                          ; Espera 100us
+0028   2046           00137         call            _100us                                          ; Espera 100us
+0029   2046           00138         call            _100us                                          ; Espera 100us
+002A   2046           00139         call            _100us                                          ; Espera 100us
+002B   2046           00140         call            _100us                                          ; Espera 100us
+002C   2046           00141         call            _100us                                          ; Espera 100us
+002D   2046           00142         call            _100us                                          ; Espera 100us
+                      00143         
+                      00144         ; Espera 1ms no total
+                      00145         
+002E   151F           00146         bsf                     ADCON0,CHS0                                     ; Seleciona canal 1 do c
+                            onversor AD
+002F   2041           00147         call            leitura_adc                                     ; Chama a subrotina leitura_adc
+0030   0523           00148         andwf           adc,w                                           ; Faz AND entre adc e w, se resu
+                            ltar em zero, seta a flag Z
+0031   1903           00149         btfsc           STATUS,Z                                        ; Testa se Z é zero, se sim, pul
+                            a uma linha
+0032   2835           00150         goto            liga_led2                                       ; Se Z setou, desvia para label 
+                            liga_led2
+0033   1205           00151         bcf                     led2                                            ; Apaga led2
+0034   2836           00152         goto            continua2                                       ; Desvia para label continua2
+                      00153         
+0035                  00154 liga_led2:                                                                      ; Cria label liga_led2
+                      00155 
+0035   1605           00156         bsf                     led2                                            ; Liga led2
+                      00157         
+0036                  00158 continua2:
+                      00159 
+0036   2046           00160         call            _100us                                          ; Espera 100us
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0037   2046           00161         call            _100us                                          ; Espera 100us
+0038   2046           00162         call            _100us                                          ; Espera 100us
+0039   2046           00163         call            _100us                                          ; Espera 100us
+003A   2046           00164         call            _100us                                          ; Espera 100us
+003B   2046           00165         call            _100us                                          ; Espera 100us
+003C   2046           00166         call            _100us                                          ; Espera 100us
+003D   2046           00167         call            _100us                                          ; Espera 100us
+003E   2046           00168         call            _100us                                          ; Espera 100us
+003F   2046           00169         call            _100us                                          ; Espera 100us
+                      00170         
+                      00171         ; Espera 1ms no total
+                      00172         
+Warning[203]: Found opcode in column 1. (goto)
+0040   281C           00173 goto loop                                                                       ; Retorna para loop infi
+                            nito
+                      00174 
+                      00175 
+                      00176 ; --- SubRotinas ---
+                      00177 
+                      00178 
+                      00179 ; --- Rotina de leitura do adc ---
+                      00180 
+0041                  00181 leitura_adc:                                                            ; Cria label para ler o adc
+                      00182         
+0041   149F           00183         bsf                     ADCON0,GO_DONE                          ; Inicia leitura do adc
+                      00184         
+0042                  00185 espera_leitura:
+                      00186 
+0042   189F           00187         btfsc           ADCON0,GO_DONE                          ; Testa se a flag GO_DONE limpou, se sim
+                            , pula uma linha
+0043   2842           00188         goto            espera_leitura                          ; Se não limpou, desvia para label esper
+                            a_leitura
+                      00189         
+0044   081E           00190         movf            ADRESH,w                                        ; w = ADRESH
+                      00191 
+0045   0008           00192         return                                                                  ; Retorna para o endereç
+                            o onde esta subrotina foi chamada
+                      00193         
+                      00194         
+                      00195 ; --- Fim da rotina de leitura do adc ---
+                      00196         
+                      00197 ; --- Rotina de delay ---
+                      00198 
+0046                  00199 _100us:
+                      00200 
+0046   0BA2           00201         decfsz          tempo,F                                         ; Decrementa tempo e pula uma li
+                            nha se chegou a zero
+0047   2846           00202         goto            _100us                                          ; Se não chegou, volta para dela
+                            y_100ms
+                      00203         
+0048   301E           00204         movlw           D'30'                                           ; w = 30d
+0049   00A2           00205         movwf           tempo                                           ; tempo = 30d
+                      00206         
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+004A   0008           00207         return                                                                  ; Retorna para local ond
+                            e a subrotina foi chamada
+                      00208 
+                      00209 
+                      00210 ; --- Fim de rotina de delay ---
+                      00211 
+                      00212 
+                      00213 ; --- Fim do programa ---                                       
+                      00214 
+Warning[205]: Found directive in column 1. (end)
+                      00215 end                                                                                     ; Final do progr
+                            ama
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADCON0                            0000001F
+ADCS0                             00000004
+ADCS1                             00000005
+ADCS2                             00000006
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADRESH                            0000001E
+ADRESL                            0000009E
+ANS0                              00000000
+ANS1                              00000001
+ANS2                              00000002
+ANS3                              00000003
+ANSEL                             0000009F
+C                                 00000000
+CAL0                              00000002
+CAL1                              00000003
+CAL2                              00000004
+CAL3                              00000005
+CAL4                              00000006
+CAL5                              00000007
+CHS0                              00000002
+CHS1                              00000003
+CINV                              00000004
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             00000019
+CMIE                              00000003
+CMIF                              00000003
+COUT                              00000006
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDAT                             0000009A
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+GO                                00000001
+GO_DONE                           00000001
+GO_NOT_DONE                       00000001
+GP0                               00000000
+GP1                               00000001
+GP2                               00000002
+GP3                               00000003
+GP4                               00000004
+GP5                               00000005
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+GPIE                              00000003
+GPIF                              00000000
+GPIO                              00000005
+GPIO0                             00000000
+GPIO1                             00000001
+GPIO2                             00000002
+GPIO3                             00000003
+GPIO4                             00000004
+GPIO5                             00000005
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IOC                               00000096
+IOC0                              00000000
+IOC1                              00000001
+IOC2                              00000002
+IOC3                              00000003
+IOC4                              00000004
+IOC5                              00000005
+IOCB                              00000096
+IOCB0                             00000000
+IOCB1                             00000001
+IOCB2                             00000002
+IOCB3                             00000003
+IOCB4                             00000004
+IOCB5                             00000005
+IRP                               00000007
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_DONE                          00000001
+NOT_GPPU                          00000007
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OPTION_REG                        00000081
+OSCCAL                            00000090
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+STATUS_TEMP                       00000021
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1IE                              00000000
+T1IF                              00000000
+T1OSCEN                           00000003
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1GE                            00000006
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TRISIO                            00000085
+TRISIO0                           00000000
+TRISIO1                           00000001
+TRISIO2                           00000002
+TRISIO3                           00000003
+TRISIO4                           00000004
+TRISIO5                           00000005
+VCFG                              00000006
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             00000099
+VREN                              00000007
+VRR                               00000005
+W                                 00000000
+WPU                               00000095
+WPU0                              00000000
+WPU1                              00000001
+WPU2                              00000002
+WPU4                              00000004
+WPU5                              00000005
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_100us                            00000046
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00003F7F
+_DEVID1                           00002006
+_EC_OSC                           00003FFB
+_EXTRC_OSC_CLKOUT                 00003FFF
+_EXTRC_OSC_NOCLKOUT               00003FFE
+_FOSC_EC                          00003FFB
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FFA
+_FOSC_INTRCCLK                    00003FFD
+_FOSC_INTRCIO                     00003FFC
+_FOSC_LP                          00003FF8
+_FOSC_XT                          00003FF9
+_HS_OSC                           00003FFA
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FF8
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FEF
+_WDTE_OFF                         00003FF7
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FF7
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FF9
+__12F675                          00000001
+__DEBUG                           1
+adc                               00000023
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+continua                          00000024
+continua2                         00000036
+espera_leitura                    00000042
+exit_ISR                          00000008
+inicio                            0000000D
+led1                              GPIO,5
+led2                              GPIO,4
+leitura_adc                       00000041
+liga_led1                         00000023
+liga_led2                         00000035
+loop                              0000001C
+tempo                             00000022
+MPASM  5.51                    ADC2CANAIS.ASM   9-9-2020  8:54:10         PAGE 11
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXX----- ---------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    72
+Program Memory Words Free:   952
+
+
+Errors   :     0
+Warnings :     2 reported,     0 suppressed
+Messages :     3 reported,     0 suppressed
+
+

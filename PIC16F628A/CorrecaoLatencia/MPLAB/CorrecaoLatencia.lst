@@ -1,0 +1,523 @@
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               Este programa tem o objetivo de demosntrar como corrigir o erro de latência da interrupç
+                            ão do timer. Para fazer 
+                      00003 ;       tal correção, é necessário, através do debug, descobrir qual é o tempo de latência da interrupçã
+                            o e, a partir disso,
+                      00004 ;       subtrair do contador do timer1 o tempo extra de latência. Isto é, já que a cada ciclo de máquina
+                             o contador incrementa
+                      00005 ;       1, basta descobrir o tempo de latência e subtrair esse tempo diretamente no contador. 
+                      00006 ;
+                      00007 ;       *** Timer 1 ***
+                      00008 ;       
+                      00009 ;       Overflow = (65536 - <TMR1H::TMR1L>) * prescaler * ciclo de máquina
+                      00010 ;               
+                      00011 ;                                                                                       Overflow
+                      00012 ;       (65536 - <TMR1H::TMR1L>) =      ---------------------------------
+                      00013 ;                                                                  prescaler * ciclo de máquina 
+                      00014 ;
+                      00015 ;                                                                               Overflow
+                      00016 ;       <TMR1H::TMR1L> = 65536 - ---------------------------------
+                      00017 ;                                                               prescaler * ciclo de máquina
+                      00018 ;
+                      00019 ;                                                          500us
+                      00020 ;       <TMR1H::TMR1L> = 65536 - --------- = 65036
+                      00021 ;                                                         1 * 1us
+                      00022 ;
+                      00023 ;       <TMR1H::TMR1L> = 65036d = FE0Ch
+                      00024 ;
+                      00025 ;       TMR1H = FEh
+                      00026 ;       TMR1L = 0Ch
+                      00027 ;
+                      00028 ;       Tempo de latência obtido pelo debug = 14us
+                      00029 ;
+                      00030 ;                                                         (500us - 14us)
+                      00031 ;       <TMR1H::TMR1L> = 65536 - ---------------- = 65050 (Valor corrigido considerando a latência de in
+                            terrupção)
+                      00032 ;                                                                 1 * 1us
+                      00033 ;
+                      00034 ;       <TMR1H::TMR1L> = 65050d = FE1Ah
+                      00035 ;
+                      00036 ;       TMR1H = FEh
+                      00037 ;       TMR1L = 1Ah     
+                      00038 ;
+                      00039 ;               No debug e na simulação o programa funcionou como esperado, com o tempo de Overflow exat
+                            o, com o tempo de 
+                      00040 ;       latência corrigido.
+                      00041 ;
+                      00042 
+                      00043 
+                      00044         list            p=16f628a                                       ; Informa o microcontrolador uti
+                            lizado
+                      00045         
+                      00046 ; --- Inclusões --- 
+                      00047 
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00048         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00049         
+                      00050 ; --- Fuse bits ---
+                      00051 
+2007   3F21           00052         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & _CP_OFF
+                      00053         
+                      00054 ;       Configura clock de 4MHz, Power Up Timer habilitado e Master Clear habilitado
+                      00055 
+                      00056 
+                      00057 ; --- Paginação de memória ---
+                      00058 
+                      00059         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00060         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00061         
+                      00062 ; --- Mapeamento de hardware ---
+                      00063 
+                      00064         #define         led1    PORTA,3                         ; Cria mnemônico para led1 em RA3
+                      00065         #define         led2    PORTA,2                         ; Cria mnemônico para led2 em RA2
+                      00066         #define         botao1  PORTB,0                         ; Cria mnemônico para botao1 em RB0
+                      00067         
+                      00068 ; --- Registradores de uso geral ---
+                      00069 
+                      00070         cblock          H'20'                                           ; Endereço de início para config
+                            uração dos registradores de uso geral
+                      00071         
+  00000020            00072         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00073         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00074         cont                                                                    ; Contador para base de 
+                            tempo de 1s
+                      00075         
+                      00076         endc                                                                    ; Fim da configuração do
+                            s registradores de uso geral
+                      00077         
+                      00078         
+                      00079 ; --- Vetor de Reset ---
+                      00080 
+0000                  00081         org                     H'0000'                                         ; Endereço de origem do 
+                            vetor de Reset
+                      00082         
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0000   281E           00083         goto            inicio                                          ; Desvia a execução para o progr
+                            ama principal
+                      00084         
+                      00085 ; --- Vetor de interrupção --- 
+                      00086 
+0004                  00087         org                     H'0004'                                         ; Endereço de origem do 
+                            vetor de Interrupção
+                      00088         
+                      00089 ; -- Salvamento de contexto --
+                      00090 
+0004   00A0           00091         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00092         swapf           STATUS,w                                        ; w = STATUS (con nibbles invert
+                            idos)
+0006   1283           00093         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+0007   00A1           00094         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00095 
+                      00096 
+                      00097 
+                      00098 ; -- Fim do salvamento de contexto --
+                      00099 
+                      00100         ; Desenvolvimento da ISR...
+                      00101         
+0008   1C0C           00102         btfss           PIR1,TMR1IF                                     ; Testa se a flag TMR1IF setou, 
+                            se sim, pula uma linha
+0009   2819           00103         goto            exit_ISR                                        ; Se não, sai da interrupção
+000A   100C           00104         bcf                     PIR1,TMR1IF                                     ; Limpa a flag TMR1IF
+000B   30FE           00105         movlw           H'FE'                                           ; w = 3Ch
+000C   008F           00106         movwf           TMR1H                                           ; reinicia TMR1H = 3Ch
+000D   301A           00107         movlw           H'1A'                                           ; w = B0h
+000E   008E           00108         movwf           TMR1L                                           ; reinicia TMR1L = B0h
+                      00109         
+000F   3040           00110         movlw           H'40'                                           ; w = 40h
+Message[305]: Using default destination of 1 (file).
+0010   0686           00111         xorwf           PORTB                                           ; Alterna RB6 com lógica XOR
+                      00112         
+                      00113 ; -- 500us --
+                      00114         
+0011   0AA2           00115         incf            cont,F                                          ; Incrementa cont
+0012   3008           00116         movlw           H'08'                                           ; w = 08h
+0013   0622           00117         xorwf           cont,w                                          ; Faz lógica XOR de w com cont
+0014   1D03           00118         btfss           STATUS,Z                                        ; Se a lógica XOR resultou em ze
+                            ro, Z = 1 e pula uma linha
+0015   2819           00119         goto            exit_ISR                                        ; Se não, sai da interrupção
+                      00120         
+0016   01A2           00121         clrf            cont                                            ; Limpa cont
+0017   3080           00122         movlw           H'80'                                           ; w = 80h
+Message[305]: Using default destination of 1 (file).
+0018   0686           00123         xorwf           PORTB                                           ; Alterna RB7 com lógica XOR
+                      00124         
+                      00125 ; -- Recuperação de contexto --
+                      00126 
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0019                  00127 exit_ISR:
+                      00128 
+0019   0E21           00129         swapf           STATUS_TEMP,w                           ; w = STATUS_TEMP (com nibbles reinverti
+                            dos)
+001A   0083           00130         movwf           STATUS                                          ; STATUS = STATUS_TEMP (com nibb
+                            les reinvertidos = STATUS original)
+001B   0EA0           00131         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+001C   0E20           00132         swapf           W_TEMP,w                                        ; w = W_TEMP (com nibbles reinve
+                            rtidos = w original)
+                      00133         
+001D   0009           00134         retfie                                                                  ; Volta para execução pr
+                            incipal
+                      00135 
+                      00136 ; -- Fim da recuperação de contexto --
+                      00137 
+001E                  00138 inicio:
+                      00139 
+001E   1683           00140         bank1                                                                   ; Seleciona banco 1 de m
+                            emória 
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001F   1386           00141         bcf                     TRISB,7                                         ; Configura RB7 como saí
+                            da digital
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0020   1306           00142         bcf                     TRISB,6                                         ; Configura RB6 como saí
+                            da digital
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0021   140C           00143         bsf                     PIE1,TMR1IE                                     ; Habilita a interrupção
+                             por overflow do timer1
+0022   1283           00144         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+0023   3007           00145         movlw           H'07'                                           ; w = 07h
+0024   009F           00146         movwf           CMCON                                           ; Desabilita os comparadores int
+                            ernos
+0025   1386           00147         bcf                     PORTB,7                                         ; Inicia RB7 em Low
+0026   1306           00148         bcf                     PORTB,6                                         ; Inicia RB6 em Low
+0027   30C0           00149         movlw           H'C0'                                           ; w = C0h
+0028   008B           00150         movwf           INTCON                                          ; Habilita a interrupção global 
+                            e por periféricos
+0029   3001           00151         movlw           H'01'                                           ; w = 01h
+002A   0090           00152         movwf           T1CON                                           ; Prescaler em 1:1, incrementa p
+                            elo ciclo de máquina e habilita o timer1
+002B   30FE           00153         movlw           H'FE'                                           ; w = 3Ch
+002C   008F           00154         movwf           TMR1H                                           ; Inicia TMR1H = 3Ch
+002D   301A           00155         movlw           H'1A'                                           ; w = B0h
+002E   008E           00156         movwf           TMR1L                                           ; Inicia TMR1L = B0h
+002F   01A2           00157         clrf            cont                                            ; Limpa registrador de uso geral
+                             cont
+                      00158         
+                      00159 
+Warning[203]: Found opcode in column 1. (goto)
+0030   2830           00160 goto                    $                                                       ; Programa fica preso ne
+                            ste endereço e aguarda interrupção
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00161 
+                      00162 
+Warning[205]: Found directive in column 1. (end)
+                      00163 end                                                                                     ; Fim do program
+                            a 
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51              CORRECAOLATENCIA.ASM   8-31-2020  21:30:44         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,0
+cont                              00000022
+exit_ISR                          00000019
+inicio                            0000001E
+led1                              PORTA,3
+led2                              PORTA,2
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX X---------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    46
+Program Memory Words Free:  2002
+
+
+Errors   :     0
+Warnings :     2 reported,     0 suppressed
+Messages :     5 reported,     0 suppressed
+
+

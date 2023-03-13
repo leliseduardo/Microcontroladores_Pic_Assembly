@@ -1,0 +1,467 @@
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;                       PIC16F628A                      Clock = 4MHz            Ciclo de máquina = 1us
+                      00003 ;               
+                      00004 ;               Este programa tem a função de introduzir o uso da interrupção, utilizando o estouro do t
+                            imer0.
+                      00005 ;
+                      00006 ;               Overflow = Contagem * prescaler * ciclo de máquina
+                      00007 ;               Overflow = (256 - TMR0) * 1:2 * 1/(4MHz/4)
+                      00008 ;               Overflow = 256 * 2 * 1us
+                      00009 ;               Overflow = 512us
+                      00010 ;
+                      00011 ;               Tempo medido pelo debug = 528us
+                      00012 ;
+                      00013 ;               O tempo medido é maior do que o calculado pois existe o tempo de latência, que é o tempo
+                             que o processador leva
+                      00014 ;       para entrar realmente na execução da rotina de interrupção. Esse tempo leva em conta o salvament
+                            o de contexto, os 
+                      00015 ;       teste de overflow, a recuperação de contexto e a recarga do timer0, entre outros, dependendo da 
+                            aplicação.
+                      00016 ;
+                      00017 
+                      00018         list p=16f628a                                                  ; Informa o microcontrolador uti
+                            lizado
+                      00019         
+                      00020 ; --- Inclusão de arquivos ---
+                      00021 
+                      00022         #include <p16f628a.inc>
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00023         
+                      00024 ; --- Fuse bits ---
+                      00025 
+2007   1F21           00026         __config        _XT_OSC & _WDTE_OFF & _PWRTE_ON & _MCLRE_ON     & _BOREN_OFF & _LVP_OFF & _CPD_O
+                            FF & _CP_ON
+                      00027         
+                      00028         ; Clock de 4MHz e apenas Master Clear e Power Up Timer habilitados
+                      00029         
+                      00030 ; --- Paginação de memória ---
+                      00031 
+                      00032         #define         bank0   bcf     STATUS,RP0              ; Cria um mnemônico para o banco 0 de me
+                            mória
+                      00033         #define         bank1   bsf     STATUS,RP0              ; Cria um mnemônico para o banco 1 de me
+                            mória
+                      00034         
+                      00035 ; --- Saídas ---
+                      00036 
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00037         #define         led1    PORTA,3                         ; Cria um mnemônico para led1 em RA3
+                      00038         #define         led2    PORTA,2                         ; Cria um mnemônico para led2 em RA2
+                      00039         
+                      00040 ; --- Entradas ---
+                      00041 
+                      00042         #define         botao1  PORTB,0                         ; Cria um mnemônico para botao1 em RB0
+                      00043         
+                      00044 ; --- Registradores de uso geral ---
+                      00045 
+                      00046         cblock          H'20'                                           ; Cria resgistadores de uso gera
+                            l a partir do endereço 20h 
+                      00047         
+  00000020            00048         W_TEMP                                                                  ; Armazena conteúdo de W
+                             temporariamente
+  00000021            00049         STATUS_TEMP                                                             ; Armazena conteúdo de S
+                            TATUS temporariamente
+                      00050         
+                      00051         endc
+                      00052         
+                      00053 ; --- Vetor de Reset ---
+                      00054 
+0000                  00055         org             H'0000'                                         ; Origem do endereço do vetor de
+                             Reset
+0000   2811           00056         goto inicio                                                             ; Desvia para a label in
+                            icio
+                      00057         
+                      00058         
+                      00059 ; --- Vetor de Interrupção ---
+                      00060 
+0004                  00061         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Interrupção
+                      00062         
+                      00063 ; --- Salva contexto ---
+                      00064 
+0004   00A0           00065         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00066         swapf           STATUS,w                                        ; Grava status em w com os nibbl
+                            es invertidos
+0006   1283           00067         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00068         movwf           STATUS_TEMP                                     ; STATUS_TEMP = w, isto é, STATU
+                            S_TEMP é igual ao STATUS com os nibbles invertidos
+                      00069 
+                      00070 ; --- Final do salvamento de contexto ---
+                      00071 
+                      00072         
+0008   1D0B           00073         btfss           INTCON,T0IF                                     ; Testa se T0IF setou, se sim, h
+                            ouve estouro do timer0
+0009   280C           00074         goto            exit_ISR                                        ; Se não T0IF não setou, sai da 
+                            interrupção
+000A   110B           00075         bcf                     INTCON,T0IF                                     ; Se T0IF setou, houve a
+                             interrupção e deve-se limpar T0IF
+Message[305]: Using default destination of 1 (file).
+000B   0985           00076         comf            PORTA                                           ; Complementa PORTA, isto é, inv
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            erte todos os seus bits 
+                      00077         
+                      00078         
+                      00079 ; --- Recupera contexto ---
+                      00080 
+000C                  00081 exit_ISR:                                                                       ; Cria label para auxili
+                            ar a saída da ISR e recuperar contexto
+                      00082 
+000C   0E21           00083         swapf           STATUS_TEMP,w                           ; w = STATUS_TEMP, logo, w é igual ao ST
+                            ATUS com os nibbles reinvertidos
+000D   0083           00084         movwf           STATUS                                          ; STATUS = w, logo, recupera o c
+                            onteúdo original de STATUS
+000E   0EA0           00085         swapf           W_TEMP,F                                        ; Inverte os nibbles do registra
+                            dor W_TEMP
+000F   0E20           00086         swapf           W_TEMP,w                                        ; w = W_TEMP, ou seja, reinverte
+                             os nibbles de W_TEMP e w recupera o conteúdo
+                      00087                                                                                         ; original
+0010   0009           00088         retfie                                                                  ; Retorna na interrupção
+                      00089         
+                      00090 ;               No salvamento e recuperação de contexto, se usa a instrução SWAPF, que inverte os nibble
+                            s de um registrador e a
+                      00091 ;       salvam em algum outro (ou o mesmo) registrador. Se usa este comando pois o comando MOVF altera a
+                             flag Z do registrador
+                      00092 ;       STATUS, logo, altera seu contúdo original. O comando SWAPF não altera nenhuma flag do STATUS.
+                      00093 
+0011                  00094 inicio:
+                      00095 
+0011   1283           00096         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+0012   3007           00097         movlw           H'07'                                           ; w = 07h
+0013   009F           00098         movwf           CMCON                                           ; CMCON = w = 07h
+0014   1683           00099         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0015   3080           00100         movlw           H'80'                                           ; w = 80h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0016   0081           00101         movwf           OPTION_REG                                      ; OPTION_REG = w = FFh, desabili
+                            ta os pull-ups internos
+0017   30F3           00102         movlw           H'F3'                                           ; w = F3h = 11110011b
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0018   0085           00103         movwf           TRISA                                           ; TRISA = w = F3h
+0019   30FF           00104         movlw           H'FF'                                           ; w = FFh
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001A   0086           00105         movwf           TRISB                                           ; TRISB = w = FFh
+001B   1283           00106         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+001C   30A0           00107         movlw           H'A0'                                           ; w = 00h
+001D   008B           00108         movwf           INTCON                                          ; INTCON = 00h, Habilita a inter
+                            rup global e a interrup por overflow do timer0
+                      00109 
+                      00110         
+001E                  00111 loop:                                                                           ; Cria label do loop inf
+                            inito
+                      00112 
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00113 
+001E   281E           00114         goto loop                                                               ; Desvia para label loop
+                      00115         
+                      00116         
+                      00117 
+                      00118 
+                      00119         end                                                                             ; Final do progr
+                            ama
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  5
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51                INTERRUPTIMER0.ASM   8-22-2020  19:54:02         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,0
+exit_ISR                          0000000C
+inicio                            00000011
+led1                              PORTA,3
+led2                              PORTA,2
+loop                              0000001E
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXX- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    28
+Program Memory Words Free:  2020
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     4 reported,     0 suppressed
+
+

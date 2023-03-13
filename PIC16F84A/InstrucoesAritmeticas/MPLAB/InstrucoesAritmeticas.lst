@@ -1,0 +1,271 @@
+MPASM  5.51         INSTRUCOESARITMETICAS.ASM   8-19-2020  9:48:29         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F84A                       Clock =         4MHz            Ciclo de máquina = 1us
+                      00003 ;
+                      00004 ;               O objetivos deste programa é demonstrar os comando de operações aritméticas simples, com
+                            o soma, subtração, shift-
+                      00005 ;       left e shift-right. Essas duas últimas servem como uma multiplicação por multiplos de 2. 
+                      00006 ;               Em Assembly para Pic não existem comando de multiplicação e estes serão construídos ao l
+                            ongo do curso.
+                      00007 ;
+                      00008 ;               Foram mostrados alguns comandos novos:
+                      00009 ;       clrf    => Utilizado para zerar um registrador de uso geral, ou qualquer outro registrador
+                      00010 ;
+                      00011 ;               Os comandos de operação aritimética estarão em uma tabela ao final do programa
+                      00012 ;
+                      00013 
+                      00014 
+                      00015         list p=16f84a ; Informa o microcontrolador utilizado
+                      00016         
+                      00017         ; --- Arquivos utilizados no projeto
+                      00018         #include <p16f84a.inc>  ; Inclui o microcontrolador utilizado
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F84A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00208         LIST
+                      00019         
+                      00020         ; --- Fuse bits ---
+2007   3FF1           00021         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _CP_OFF       ; Configura os fuses do microcontrolador
+                            . Clock de 4MHz,
+                      00022                                                                                                         
+                                    ; Watchdog timer desligado, PowerUp Timer ligado e Code Protect
+                      00023                                                                                                         
+                                    ; desligado
+                      00024                                                                                                         
+                                    
+                      00025         ; --- Paginação de memória ---
+                      00026         #define         bank0   bcf             STATUS,RP0              ; Cria um mnemônico para o banco
+                             0 de memória
+                      00027         #define         bank1   bsf             STATUS,RP0              ; Cria um mnemônico para o banco
+                             1 de memória
+                      00028         
+                      00029         ; --- Saídas ---
+                      00030         #define         led1    PORTB,RB7       ; Cria um mnemônico para a saída RB7
+                      00031         #define         led2    PORTB,RB6       ; Cria um menmônico para a saída RB6
+                      00032         
+                      00033         ; --- Registradores de uso geral ---
+                      00034         cblock          H'0C'           ; Inicio da memória dos registradores de uso geral
+                      00035         
+  0000000C            00036         register1               ;       Endereço H'0C'
+MPASM  5.51         INSTRUCOESARITMETICAS.ASM   8-19-2020  9:48:29         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+  0000000D            00037         register2               ;       Endereço H'0D'
+                      00038         
+                      00039         endc
+                      00040         
+                      00041         ;
+                      00042         ;       register1       equ             H'0C'
+                      00043         ;       register2       equ             H'0D'
+                      00044         ;
+                      00045         ;       Esta é uma das formas de se declarar os registradores de uso geral
+                      00046         ;
+                      00047         
+                      00048         
+                      00049         
+                      00050         
+                      00051         ; --- Vetor de Reset ---
+0000                  00052         org             H'0000'         ; Informa o endereço do vetor Reset no banco de memória
+                      00053         
+0000   2805           00054         goto inicio     ; Desvia o programa para a label inicio
+                      00055         
+                      00056         ; --- Vetor de interrupção
+0004                  00057         org                     H'0004'         ; Informa o endereço do vetor de interrupção no banco de
+                             memória
+                      00058         
+0004   0009           00059         retfie          ; Retorna a execução para o local onde o programa foi interrompido
+                      00060         
+                      00061         
+                      00062         ; --- Programa principal ---
+Warning[207]: Found label after column 1. (inicio)
+0005                  00063         inicio:
+                      00064         
+0005   1683           00065                 bank1                   ; Seleciona o banco 1 de memória
+0006   303F           00066                 movlw   H'3F'   ; Move o valor 3F para o registrador w
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0007   0086           00067                 movwf   TRISB   ; Move o valor de w para o registrador TRISB e configura RB7 e RB6 como 
+                            saídas digitais
+0008   1283           00068                 bank0                   ; Seleciona o banco 0 de memória        
+0009   303F           00069                 movlw   H'3F'   ; Move o valor 3F para w
+000A   0086           00070                 movwf   PORTB   ; Move o valor de w para PORTB e inicia as portas RB7 e RB6 em Low
+000B   018C           00071                 clrf    register1       ; Inicia o registrador de uso geral register1 todo em Low
+000C   018D           00072                 clrf    register2       ; Inicia o registrador de uso geral register2 todo em Low
+                      00073                 
+Warning[207]: Found label after column 1. (loop)
+000D                  00074                 loop:                   ; Cria a label loop, que é a label do loop infinito
+                      00075                 
+000D   300A           00076                         movlw   D'10' ; Move 10 decimal para w
+000E   3E05           00077                         addlw   D'5'  ; Soma 5 ao valor contido em w
+                      00078                         
+000F   3032           00079                         movlw   D'50'   ; Move 50 decimal para w
+0010   008C           00080                         movwf   register1       ; Move o valor contido em w para register1
+0011   3064           00081                         movlw   D'100'  ; Move 100 decimal para w
+0012   070C           00082                         addwf   register1,w
+                      00083                         
+0013   280D           00084                 goto loop               ; Desvia o programa para a label loop
+MPASM  5.51         INSTRUCOESARITMETICAS.ASM   8-19-2020  9:48:29         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00085                 
+                      00086                         
+                      00087                         
+                      00088                 end
+MPASM  5.51         INSTRUCOESARITMETICAS.ASM   8-19-2020  9:48:29         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DC                                00000001
+EEADR                             00000009
+EECON1                            00000088
+EECON2                            00000089
+EEDATA                            00000008
+EEIE                              00000006
+EEIF                              00000004
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_PD                            00000003
+NOT_RBPU                          00000007
+NOT_TO                            00000004
+OPTION_REG                        00000081
+PCL                               00000002
+PCLATH                            0000000A
+PORTA                             00000005
+PORTB                             00000006
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+TMR0                              00000001
+MPASM  5.51         INSTRUCOESARITMETICAS.ASM   8-19-2020  9:48:29         PAGE  5
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR0IE                            00000005
+TMR0IF                            00000002
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+Z                                 00000002
+_CONFIG                           00002007
+_CP_OFF                           00003FFF
+_CP_ON                            0000000F
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F84A                          00000001
+__DEBUG                           1
+bank0                             bcf             STATUS,RP0
+bank1                             bsf             STATUS,RP0
+inicio                            00000005
+led1                              PORTB,RB7
+led2                              PORTB,RB6
+loop                              0000000D
+register1                         0000000C
+MPASM  5.51         INSTRUCOESARITMETICAS.ASM   8-19-2020  9:48:29         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+register2                         0000000D
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXX------------ ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    17
+Program Memory Words Free:  1007
+
+
+Errors   :     0
+Warnings :     2 reported,     0 suppressed
+Messages :     1 reported,     0 suppressed
+
+

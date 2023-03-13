@@ -1,0 +1,247 @@
+MPASM  5.51                      LEDBOTAO.ASM   8-18-2020  8:40:02         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F84A                       Clock = 4MHz
+                      00003 ;
+                      00004 ;               Neste programa, será feito um led acender quando um botão for pressionado. O botão está 
+                            conectado no pino RB0 e
+                      00005 ;       o led no pino RB7.
+                      00006 ;
+                      00007 ;               Alguns novos comandos serão usados
+                      00008 ;
+                      00009 ;               btfsc = bit test file skip clear, que testa se o bit de um registrador é zero e, se for,
+                             pula uma linha
+                      00010 ;
+                      00011 ;               Pela debug do programa deu para ver que o programa funcionou como esperado. Na simulação
+                             do proteus o programa
+                      00012 ;       funcionou como esperado.
+                      00013 ;               Na prática, o programa e o circuito funcionaram perfeitamente.
+                      00014 ;
+                      00015 
+                      00016         list p=16f84a   ; Informa o microcontrolador usado
+                      00017         
+                      00018         ; --- Arquivos incluídos no projeto ---
+                      00019         #include <p16f84a.inc>  ; Inclui o arquivo do microcontrolador usado
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F84A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00208         LIST
+                      00020         
+                      00021         ; --- FUSE Bits ---
+2007   3FF1           00022         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _CP_OFF       ; Configura o oscilador externa para XT,
+                             desliga o watchDog
+                      00023                                                                                                         
+                                    ; timer, habilita o Power Up Timer e desliga a proteção de código
+                      00024                                                                                                         
+                                    
+                      00025         ; --- Paginação de memória ---
+                      00026         #define bank0 bcf STATUS,RP0 ; Basta utilizar o mnemônico bank0 para mudar para o banco 0
+                      00027         #define bank1 bsf STATUS,RP0 ; Basta utilizar o mnemônico bank1 para mudar para o banco 1
+                      00028                                                                  ; Para mudar de banco de memória é nece
+                            sário configurar o bit RP0 do registrador STATUS
+                      00029                                                                 
+                      00030         ; --- Entradas ---
+                      00031         #define botao PORTB,RB0 ; Cria um mnemônico para um botão, que estará conectado ao RB0
+                      00032         
+                      00033         ; --- Saídas ---
+                      00034         #define led PORTB,RB7 ; Cria um mnemônico para um led, conectado no pino RB7                    
+                                    
+                      00035                                                                 
+                      00036         ; --- Vetor de Reset ---
+MPASM  5.51                      LEDBOTAO.ASM   8-18-2020  8:40:02         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0000                  00037         org H'0000' ; Informa a origem do vetor Reset no banco de memória
+                      00038         
+0000   2805           00039         goto inicio ; Desvia o programa para inicio
+                      00040         
+                      00041         ; --- Vetor de Interrupção --- 
+0004                  00042         org H'0004' ; Informa a origem do vetor de interrupção no banco de memória
+                      00043         
+0004   0009           00044         retfie ; Desvia o programa para retomar de onde parou, quando houve a interrupção
+                      00045         
+                      00046         
+                      00047         ; --- Programa principal ---
+Warning[207]: Found label after column 1. (inicio)
+0005                  00048         inicio:
+                      00049         
+0005   1683           00050                 bank1 ; Utiliza o mnemônico bank1 para selecionar o banco 1 de memória
+0006   30FF           00051                 movlw   H'FF' ; Ou B'1111 1111', move este valor para o registrador de trabalho Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0007   0085           00052                 movwf   TRISA ; Transfere o valor de W para TRISA, configurando todas os pinos como entr
+                            ada digital
+0008   307F           00053                 movlw   H'7F' ; Ou B'0111 1111', move este valor para o registradore de trabalho Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0009   0086           00054                 movwf   TRISB ; Transfere o valor do resgistrador Work (w) para o registrador TRISB, con
+                            figurando apenas RB0
+                      00055                                           ; como saída digital, e o resto dos pinos do PORTB como entrad
+                            a digital.
+000A   1283           00056                 bank0 ; Utiliza o mnemônico bank0 para selecionar o banco 0 de memória
+000B   30FF           00057                 movlw   H'FF' ; Move este valor para o resgistrador de trabalho Work (w)
+000C   0086           00058                 movwf   PORTB ; Transfere o valor de w para o portb, iniciando todas as saídas em High
+                      00059                 
+Warning[207]: Found label after column 1. (loop)
+000D                  00060         loop:
+                      00061         
+000D   1806           00062                 btfsc   botao ; Testa se o botao foi pressionado, se foi, pula uma linha
+000E   2811           00063                 goto    apaga_led ; Se não for, desvia para a label apaga_led
+000F   1786           00064                 bsf             led ; Se o botao foi pressionado, seta o led (RB7) em High (liga o led)
+0010   280D           00065                 goto    loop ; Retorna para label loop
+                      00066                 
+Warning[207]: Found label after column 1. (apaga_led)
+0011                  00067         apaga_led:
+                      00068         
+0011   1386           00069                 bcf             led ; Se o botao não foi pressionado, coloca led (RB7) em Low (apaga led
+                            )
+0012   280D           00070                 goto    loop ; Retorna para label loop
+                      00071                 
+                      00072                 end 
+MPASM  5.51                      LEDBOTAO.ASM   8-18-2020  8:40:02         PAGE  3
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DC                                00000001
+EEADR                             00000009
+EECON1                            00000088
+EECON2                            00000089
+EEDATA                            00000008
+EEIE                              00000006
+EEIF                              00000004
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_PD                            00000003
+NOT_RBPU                          00000007
+NOT_TO                            00000004
+OPTION_REG                        00000081
+PCL                               00000002
+PCLATH                            0000000A
+PORTA                             00000005
+PORTB                             00000006
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+TMR0                              00000001
+MPASM  5.51                      LEDBOTAO.ASM   8-18-2020  8:40:02         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR0IE                            00000005
+TMR0IF                            00000002
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+Z                                 00000002
+_CONFIG                           00002007
+_CP_OFF                           00003FFF
+_CP_ON                            0000000F
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F84A                          00000001
+apaga_led                         00000011
+bank0                             bcf STATUS,RP0
+bank1                             bsf STATUS,RP0
+botao                             PORTB,RB0
+inicio                            00000005
+led                               PORTB,RB7
+loop                              0000000D
+MPASM  5.51                      LEDBOTAO.ASM   8-18-2020  8:40:02         PAGE  5
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : X---XXXXXXXXXXXX XXX------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    16
+Program Memory Words Free:  1008
+
+
+Errors   :     0
+Warnings :     3 reported,     0 suppressed
+Messages :     2 reported,     0 suppressed
+
+

@@ -1,0 +1,557 @@
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é utilizar o modo PWM do módulo CCP. Este módulo utiliza o tim
+                            er 2 para fazer a contagem
+                      00003 ;       e implementar o PWM. Simultâneamente o código irá utilizar o timer 0 para fazer a varredura de d
+                            ois botões, que têm a 
+                      00004 ;       a função de aumentar e diminuit o duty cicle do PWM.
+                      00005 ;               Para configurar o PWM do módulo CCP, basta ligar o timer2, configurar o PR2 e o prescale
+                            r, para ajustar o período
+                      00006 ;       do PWM. Ativar o módulo CCP no modo PWM e, ainda, iniciar os contadores CCPR1L e CCP1CON<5:4> pa
+                            ra ajustar o duty cicle. 
+                      00007 ;               Para utilizar este módulo, não é necessário habilitar as interrupções globais, por perif
+                            éricos e nem do timer2,
+                      00008 ;       o timer2 é utilizado apenas como contador nesta aplicação.
+                      00009 ;               Porém, neste programa a interrupção global e a interrupção por overflow do timer0 foram 
+                            ligadas, pois utiliza-se
+                      00010 ;       o timer0 para fazer a varredura dos botões utilizados para incrementar e decrementar o duty cicl
+                            e do PWM.
+                      00011 ;               Para utilizar o PWM do módulo CCP, é importante configurar o pino RB3/CCP1 como saída, p
+                            ara o correto funciona-
+                      00012 ;       mento do PWM.
+                      00013 ;               O tempo do semiciclo ativo, isto é, do semiciclo em que o sinal PWM está em High, pode s
+                            er calculado pela equação
+                      00014 ;       do semiciclo ativo, que considera os 10bits de resolução do PWM, o ciclo de oscilação e o presca
+                            ler. Não se deve 
+                      00015 ;       confundir ciclo de oscilação com ciclo de máquina, são coisas diferentes.
+                      00016 ;               Obs: O PWM neste código foi configurado para ter resoluçaõ de 8 bits. Mas ele pode ser c
+                            onfigurado até 8 bits.
+                      00017 ;
+                      00018 ;               *** A equação para encontrar o período de oscilação do PWM é a seguinte: ***
+                      00019 ;
+                      00020 ;               Período PWM = (PR2 + 1) * ciclo de máquina * prescaler do timer2
+                      00021 ;               Período PWM     = (255 + 1) * 1us * 16
+                      00022 ;               período PWM     = 4,096ms
+                      00023 ;               Frequência PWM = 244,14Hz
+                      00024 ;
+                      00025 ;               Semiciclo Ativo = (CCPR1L:CCP1CON<5:4>) * ciclo de oscilação * prescaler
+                      00026 ;
+                      00027 ;                                                            1              1
+                      00028 ;               ciclo de oscilação =  -------- = -------- = 250ns
+                      00029 ;                                                           Fosc           4MHz
+                      00030 ;
+                      00031 ;               *** TIMER0 ***
+                      00032 ;
+                      00033 ;               Overflow = (255 - TMR0) * prescale * ciclo de máquina
+                      00034 ;               Overflow = 105 * 128 * 1us
+                      00035 ;               Overflow = 13,4ms
+                      00036 ;
+                      00037 ;               Tanto na simulação quanto na prática o programa e o circuito funcionaram como esperado.
+                      00038 ;
+                      00039 
+                      00040         list            p=16f628a                                       ; Informa o microcontrolador uti
+                            lizado
+                      00041         
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00042 ; --- Inclusão de arquivos ---
+                      00043 
+                      00044         #include        <p16f628a.inc>                          ; Inclui o arquivos com os registradores
+                             do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00045                 
+                      00046 ; --- Fuse bits ---
+                      00047 
+2007   3F21           00048         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & _CP_OFF
+                      00049         
+                      00050 ; Cristal externo de 4MHz, Power Up Timer habilitado e Master Clear habilitado
+                      00051 
+                      00052 ; --- Paginação de memória ---
+                      00053 
+                      00054         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00055         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00056         
+                      00057 ; --- Mapeamento de hardware ---
+                      00058 
+                      00059         #define         led1            PORTA,3                 ; Cria mnemônico para led1 em RA3
+                      00060         #define         led2            PORTA,2                 ; Cria mnemônico para led2 em RA2
+                      00061         #define         botao1          PORTB,0                 ; Cria mnemônico para botao1 em RB0
+                      00062         #define         botao2          PORTB,1                 ; Cria mnemônico para botao2 em RB1
+                      00063         
+                      00064 ; --- Registradores de uso geral ---
+                      00065 
+                      00066         cblock          H'20'                                           ; Endereço inicial para configur
+                            ar os resgistradores de uso geral
+                      00067         
+  00000020            00068         W_TEMP                                                                  ; Armazena valor de W te
+                            mporariamente
+  00000021            00069         STATUS_TEMP                                                             ; Armazena o valor de ST
+                            ATUS temporariamente
+                      00070         
+                      00071         endc                                                                    ; Termina a configuração
+                             dos registradores de uso geral
+                      00072         
+                      00073         
+                      00074 ; --- Vetor de Reset ---                        
+                      00075 
+0000                  00076         org                     H'0000'                                         ; Endereço de origem do 
+                            vetor de Reset
+                      00077         
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0000   2823           00078         goto            inicio                                          ; Desvia para programa principal
+                      00079         
+                      00080         
+                      00081 ; --- Vetor de interrupção ---
+                      00082 
+0004                  00083         org                     H'0004'                                         ; Endereço de origem do 
+                            vetor de Interrupção
+                      00084         
+                      00085 ; -- Salvamento de contexto --
+                      00086 
+0004   00A0           00087         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00088         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00089         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+0007   00A1           00090         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00091 
+                      00092 ; -- Fim do salvamento de contexto --
+                      00093 
+                      00094         ; Desenvolvimento da ISR...
+                      00095         
+0008   1D0B           00096         btfss           INTCON,T0IF                                     ; Testa se flag T0IF setou, se s
+                            im, pula uma linha
+0009   281E           00097         goto            exit_ISR                                        ; Se não, sai da interrupção
+000A   110B           00098         bcf                     INTCON,T0IF                                     ; Limpa flag T0IF
+                      00099         
+000B   3096           00100         movlw           D'150'                                          ; w = 150d
+000C   0081           00101         movwf           TMR0                                            ; Recarrega TMR0 = 150d
+                      00102         
+000D   1C06           00103         btfss           botao1                                          ; Testa se botao1 foi pressionad
+                            o, se foi, NÃO pula uma linha
+000E   2812           00104         goto            incrementa_PWM                          ; Se botao1 foi pressionado, desvia para
+                             label incrementa_PWM
+                      00105         
+000F   1C86           00106         btfss           botao2                                          ; Testa se botao2 foi pressionad
+                            o, se foi, NÃO pula uma linha
+0010   2818           00107         goto            decrementa_PWM                          ; Se botao2 foi pressionado, desvia para
+                             label decrementa_PWM
+                      00108         
+0011   281E           00109         goto            exit_ISR                                        ; Se botao1 nem botao2 foram pre
+                            ssionados, sai da interrupção
+                      00110         
+0012                  00111 incrementa_PWM:
+                      00112 
+0012   30FF           00113         movlw           D'255'                                          ; w = 255d
+0013   0615           00114         xorwf           CCPR1L,w                                        ; Faz lógica XOR com CCPR1L para
+                             testar se este reg já chegou a 255d
+0014   1903           00115         btfsc           STATUS,Z                                        ; Se não chegou, Z é zero e pula
+                             uma linha para continuar incrementando
+0015   281E           00116         goto            exit_ISR                                        ; Se ja chegou, Z é um e sai da 
+                            interrupção
+0016   0A95           00117         incf            CCPR1L,F                                        ; Incrementa CCPR1L
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0017   281E           00118         goto            exit_ISR                                        ; Sai da interrupção
+                      00119         
+0018                  00120 decrementa_PWM:
+                      00121 
+0018   3000           00122         movlw           D'0'                                            ; w = 0d
+0019   0615           00123         xorwf           CCPR1L,w                                        ; Faz lógica XOR com CCPR1L para
+                             testar se este reg já chegou a 0d
+001A   1903           00124         btfsc           STATUS,Z                                        ; Se não chegou, Z é zero e pula
+                             uma linha para continuar decrementando
+001B   281E           00125         goto            exit_ISR                                        ; Se já chegou, Z é 1 e sai da i
+                            nterrupção
+001C   0395           00126         decf            CCPR1L,F                                        ; Decrementa CCPR1L
+001D   281E           00127         goto            exit_ISR                                        ; Sai da interrupção
+                      00128         
+                      00129 ; -- Recuperação de contexto --
+                      00130 
+001E                  00131 exit_ISR:
+                      00132 
+001E   0E21           00133         swapf           STATUS_TEMP,w                           ; w = STATUS_TEMP (com nibbles reinverti
+                            dos = STATUS original)
+001F   0083           00134         movwf           STATUS                                          ; STATUS = STATUS_TEMP (STATUS o
+                            riginal)
+0020   0EA0           00135         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+0021   0E20           00136         swapf           W_TEMP,w                                        ; w = W_TEMP (com nibbles reinve
+                            rtidos = w original)
+                      00137         
+0022   0009           00138         retfie                                                                  ; Retorna ao loop infini
+                            to
+                      00139 
+                      00140 ; -- Fim da recuperação de contexto -- 
+                      00141 
+                      00142 
+                      00143 ; --- Inicio do programa principal ---
+                      00144 
+0023                  00145 inicio: 
+                      00146 
+0023   1683           00147         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0024   3086           00148         movlw           H'86'                                           ; w = 86h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0025   0081           00149         movwf           OPTION_REG                                      ; OPTION_REG = 86h, configura o 
+                            prescaler do timer0 em 1:128 e desabilita os pull-ups internos
+0026   30F3           00150         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0027   0085           00151         movwf           TRISA                                           ; TRISA = F3h, configura apenas 
+                            RA3 e RA2 como saídas digitais
+0028   30F7           00152         movlw           H'F7'                                           ; w = F7h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0029   0086           00153         movwf           TRISB                                           ; TRISB = F7h, configura apenas 
+                            RB3 como saída digital
+002A   30FF           00154         movlw           D'255'                                          ; w = 255d
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+002B   0092           00155         movwf           PR2                                                     ; PR2 = 255d
+002C   1283           00156         bank0                                                                   ; Seleciona banco 0 de m
+                            emória
+002D   3007           00157         movlw           H'07'                                           ; w = 07h
+002E   009F           00158         movwf           CMCON                                           ; CMCON = 07h, desabilita os com
+                            paradores internos
+002F   30E0           00159         movlw           H'E0'                                           ; w = E0h
+0030   008B           00160         movwf           INTCON                                          ; INTCON = E0h, habilita a inter
+                            upção global, por periféricos e a interrupção do timer0
+0031   3096           00161         movlw           D'150'                                          ; w = 150d
+0032   0081           00162         movwf           TMR0                                            ; inicia contagem do TMR0 em 150
+                            d
+0033   3006           00163         movlw           H'06'                                           ; w = 06h
+0034   0092           00164         movwf           T2CON                                           ; T2CON = 06h, habilita o timer 
+                            2 e configura o prescaler 1:16
+0035   300C           00165         movlw           H'0C'                                           ; w = 0Ch
+0036   0097           00166         movwf           CCP1CON                                         ; CCP1CON = 0Ch, configura o mód
+                            ulo CCP no modo PWM
+0037   0195           00167         clrf            CCPR1L                                          ; Zera byte menos significativo 
+                            do contador do PWM
+                      00168         
+                      00169         
+                      00170 
+                      00171 ; -- Loop infinito -- 
+                      00172 
+0038                  00173 loop:                                                                           ; Cria label para loop i
+                            nfinito
+                      00174 
+                      00175 
+0038   2838           00176         goto loop                                                               ; Desvia para loop infin
+                            ito     
+                      00177         
+                      00178         
+                      00179 
+Warning[205]: Found directive in column 1. (end)
+                      00180 end
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51                      PWMMOTOR.ASM   8-27-2020  12:17:15         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,0
+botao2                            PORTB,1
+decrementa_PWM                    00000018
+exit_ISR                          0000001E
+incrementa_PWM                    00000012
+inicio                            00000023
+led1                              PORTA,3
+led2                              PORTA,2
+loop                              00000038
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXX-------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    54
+Program Memory Words Free:  1994
+
+
+Errors   :     0
+Warnings :     1 reported,     0 suppressed
+Messages :     4 reported,     0 suppressed
+
+

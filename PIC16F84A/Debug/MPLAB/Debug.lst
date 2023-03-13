@@ -1,0 +1,248 @@
+MPASM  5.51                         DEBUG.ASM   8-17-2020  19:39:58         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               PIC16F84A                       Clock = 4MHz
+                      00003 ;
+                      00004 ;               Este programa tem a função de demonstrar como criar um novo projeto com o MPLAB, um proj
+                            eto que poderá ser com-
+                      00005 ;       pilado e irá gerar os arquivos Hex, para gravar o Pic na prática e Cof, para debugar o Pic. Aind
+                            a, este programa foi
+                      00006 ;       usado para demonstrar o debug do MPLAB.
+                      00007 ;
+                      00008 ;               Na aula, o professor demonstrou, através do datasheer, que o registrador TRISA não apres
+                            enta os três nibles mais
+                      00009 ;       significativos e, mesmo configurando ele todo como entrada (H'FF'), por exemplo, os três nibles 
+                            mais significativos
+                      00010 ;       permancem em 0.
+                      00011 ;               Os registradores de estado dos pinos, os PORTX, só poderão ser setados em High se o pino
+                             em questão foi configu-
+                      00012 ;       rado como saída. Caso tenha sido configurado como entrada, mesmo que configuremos o PORTX como H
+                            igh, ele permanecerá
+                      00013 ;       em Low. Logo, só se pode configurar em High as saídas.
+                      00014 ; 
+                      00015 ;               O comando "goto $" mantém o programa fixo nesta linha, pois o comando goto desvia o prog
+                            rama para algum lugar,
+                      00016 ;       e o comando $ devolve o endereço em que ele está. Ou seja, o programa será desviado para a própr
+                            ia linha em que está.
+                      00017 ;       Assim, o programa fica preso nesta linha.
+                      00018 ;       
+                      00019 ;               Como se pode ver na simulação, ao passar o valor H'FF' para PORTB, ao invés de ficar com
+                             esse valor, ele fica com 
+                      00020 ;       o valor H'80', pois o registrador PORTB só irá colocar em High os pinos que foram configurados c
+                            omo saída digital.
+                      00021 ;
+                      00022 
+Warning[205]: Found directive in column 1. (list)
+                      00023 list p=16f84a   ; Informa o microcontrolador usado
+                      00024         
+                      00025         ; --- Arquivos incluídos no projeto ---
+                      00026         #include <p16f84a.inc>  ; Inclui o arquivo do microcontrolador usado
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F84A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00208         LIST
+                      00027         
+                      00028         ; --- FUSE Bits ---
+2007   3FF1           00029         __config _XT_OSC & _WDT_OFF & _PWRTE_ON & _CP_OFF       ; Configura o oscilador externa para XT,
+                             desliga o watchDog
+                      00030                                                                                                         
+                                    ; timer, habilita o Power Up Timer e desliga a proteção de código
+                      00031                                                                                                         
+MPASM  5.51                         DEBUG.ASM   8-17-2020  19:39:58         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                                    
+                      00032         ; --- Paginação de memória ---
+                      00033         #define bank0 bcf STATUS,RP0 ; Basta utilizar o mnemônico bank0 para mudar para o banco 0
+                      00034         #define bank1 bsf STATUS,RP0 ; Basta utilizar o mnemônico bank1 para mudar para o banco 1
+                      00035                                                                  ; Para mudar de banco de memória é nece
+                            sário configurar o bit RP0 do registrador STATUS
+                      00036                                                                 
+                      00037         ; --- Entradas ---
+                      00038         #define botao PORTB,RB0 ; Cria um mnemônico para um botão, que estará conectado ao RB0
+                      00039         
+                      00040         ; --- Saídas ---
+                      00041         #define led PORTB,RB7 ; Cria um mnemônico para um led, conectado no pino RB7                    
+                                    
+                      00042                                                                 
+                      00043         ; --- Vetor de Reset ---
+0000                  00044         org H'0000' ; Informa a origem do vetor Reset no banco de memória
+                      00045         
+0000   2805           00046         goto inicio ; Desvia o programa para inicio
+                      00047         
+                      00048         ; --- Vetor de Interrupção --- 
+0004                  00049         org H'0004' ; Informa a origem do vetor de interrupção no banco de memória
+                      00050         
+0004   0009           00051         retfie ; Desvia o programa para retomar de onde parou, quando houve a interrupção
+                      00052         
+                      00053         
+                      00054         ; --- Programa principal ---
+Warning[207]: Found label after column 1. (inicio)
+0005                  00055         inicio:
+                      00056         
+0005   1683           00057                 bank1 ; Utiliza o mnemônico bank1 para selecionar o banco 1 de memória
+0006   30FF           00058                 movlw   H'FF' ; Ou B'1111 1111', move este valor para o registrador de trabalho Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0007   0085           00059                 movwf   TRISA ; Transfere o valor de W para TRISA, configurando todas os pinos como entr
+                            ada digital
+0008   307F           00060                 movlw   H'7F' ; Ou B'0111 1111', move este valor para o registradore de trabalho Work
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0009   0086           00061                 movwf   TRISB ; Transfere o valor do resgistrador Work (w) para o registrador TRISB, con
+                            figurando apenas RB0
+                      00062                                           ; como saída digital, e o resto dos pinos do PORTB como entrad
+                            a digital.
+000A   1283           00063                 bank0 ; Utiliza o mnemônico bank0 para selecionar o banco 0 de memória
+000B   30FF           00064                 movlw   H'FF' ; Move este valor para o resgistrador de trabalho Work (w)
+000C   0086           00065                 movwf   PORTB ; Transfere o valor de w para o portb, iniciando todas as saídas em High
+                      00066                 
+000D   280D           00067                 goto    $ ; Mantém a execução presa nesta linha 
+                      00068                 
+                      00069                 end 
+MPASM  5.51                         DEBUG.ASM   8-17-2020  19:39:58         PAGE  3
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DC                                00000001
+EEADR                             00000009
+EECON1                            00000088
+EECON2                            00000089
+EEDATA                            00000008
+EEIE                              00000006
+EEIF                              00000004
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_PD                            00000003
+NOT_RBPU                          00000007
+NOT_TO                            00000004
+OPTION_REG                        00000081
+PCL                               00000002
+PCLATH                            0000000A
+PORTA                             00000005
+PORTB                             00000006
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+TMR0                              00000001
+MPASM  5.51                         DEBUG.ASM   8-17-2020  19:39:58         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR0IE                            00000005
+TMR0IF                            00000002
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+Z                                 00000002
+_CONFIG                           00002007
+_CP_OFF                           00003FFF
+_CP_ON                            0000000F
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F84A                          00000001
+__DEBUG                           1
+bank0                             bcf STATUS,RP0
+bank1                             bsf STATUS,RP0
+botao                             PORTB,RB0
+inicio                            00000005
+led                               PORTB,RB7
+MPASM  5.51                         DEBUG.ASM   8-17-2020  19:39:58         PAGE  5
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : X---XXXXXXXXXX-- ---------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    11
+Program Memory Words Free:  1013
+
+
+Errors   :     0
+Warnings :     2 reported,     0 suppressed
+Messages :     2 reported,     0 suppressed
+
+

@@ -1,0 +1,553 @@
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;
+                      00002 ;               O objetivo deste programa é multiplexar dois displays de 7 segmentos, isto é, num tempo 
+                            muito rápidos alternar
+                      00003 ;       entre o acionamento de ambos, de forma que os dois aparentem estar permanentemente ligados.
+                      00004 ;               Para fazer a multiplexação, será usado o timer0 com tempo de overflow calculado abaixo.
+                      00005 ;
+                      00006 ;       *** Timer 0 ***
+                      00007 ;
+                      00008 ;       Overflow = (256 - TMR0) * prescaler * ciclo de máquina
+                      00009 ;       Overflow = 256 * 32 * 1us
+                      00010 ;       Overflow = 8,192ms 
+                      00011 ;
+                      00012 
+                      00013 
+                      00014         list            p=16f628a                                               ; Informa o microcontrol
+                            ador utilizado
+                      00015         
+                      00016 ; --- inclusões ---
+                      00017 
+                      00018         #include        <p16f628a.inc>                          ; Inclui o arquivo com os registradores 
+                            do Pic
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F628A processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00385         LIST
+                      00019         
+                      00020 ; --- Fuse bits ---
+                      00021 
+2007   3F21           00022         __config        _XT_OSC & _WDT_OFF & _PWRTE_ON & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & 
+                            _CP_OFF
+                      00023         
+                      00024 ;       Configura clock de 4MHz, habilita o Power Up Timer e habilita o Master Clear
+                      00025 
+                      00026 ; --- Mapeamento de hardware ---
+                      00027 
+                      00028         #define         digDez  PORTA,3                         ; Cria mnemônico para led1 em RA3
+                      00029         #define         digUni  PORTA,2                         ; Cria mnemônico para led2 em RA2
+                      00030         #define         botao1  PORTB,4                         ; Cria mnemônico para botao1 em RB0
+                      00031 
+                      00032 ; --- Paginação de memória ---
+                      00033 
+                      00034         #define         bank0   bcf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             0 de memória
+                      00035         #define         bank1   bsf     STATUS,RP0              ; Cria mnemônico para selecionar o banco
+                             1 de memória
+                      00036         
+                      00037 ; --- Registradores de uso geral ---
+                      00038 
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00039         cblock          H'20'                                           ; Início do endereço para config
+                            uração dos registradores de uso geral
+                      00040         
+  00000020            00041         W_TEMP                                                                  ; Armazena o conteúdo de
+                             w temporariamente
+  00000021            00042         STATUS_TEMP                                                             ; Armazena o conteúdo de
+                             STATUS temporariamente
+  00000022            00043         dez                                                                             ; Dezena do disp
+                            lay
+  00000023            00044         uni                                                                             ; Unidade do dis
+                            play
+                      00045         
+                      00046         endc                                                                    ; Fim da configuração do
+                            s registradores de uso geral
+                      00047         
+                      00048 ; --- Vetor de Reset ---
+                      00049 
+0000                  00050         org                     H'0000'                                         ; Origem do endereço do 
+                            vetor de Reset
+                      00051         
+0000   2820           00052         goto            inicio                                          ; Desvia para label inicio, prog
+                            rama principal
+                      00053         
+                      00054 ; Vetor de Interrupção
+                      00055 
+0004                  00056         org             H'0004'                                         ; Origem do endereço do vetor de
+                             Reset
+                      00057         
+                      00058 ; -- Salvamento de contexto --
+                      00059 
+0004   00A0           00060         movwf           W_TEMP                                          ; W_TEMP = w
+0005   0E03           00061         swapf           STATUS,w                                        ; w = STATUS (com nibbles invert
+                            idos)
+0006   1283           00062         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0007   00A1           00063         movwf           STATUS_TEMP                                     ; STATUS_TEMP = STATUS (com nibb
+                            les invertidos)
+                      00064         
+                      00065 ; -- Fim do salvamento de contexto --
+                      00066 
+                      00067         ; Desenvolvimento da ISR...
+                      00068 
+0008   1D0B           00069         btfss           INTCON,T0IF                                     ; Testa se a flag T0IF setou, se
+                             sim, pula uma linha
+0009   281B           00070         goto            exit_ISR                                        ; Se não, sai da interrupção
+000A   110B           00071         bcf                     INTCON,T0IF                                     ; Limpa a flag T0IF
+                      00072         
+000B   1D85           00073         btfss           digDez                                          ; Testa se o o display das dezen
+                            as está ligado, se estiver, pula uma linha
+000C   2811           00074         goto            apaga_digUni                            ; Se não estiver, desvia para label apag
+                            a_digUni
+000D   1185           00075         bcf                     digDez                                          ; Desliga display das de
+                            zenas
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000E   0186           00076         clrf            PORTB                                           ; Limpa PORTB
+000F   1505           00077         bsf                     digUni                                          ; Liga display das unida
+                            de
+0010   2818           00078         goto            imprime                                         ; Desvia para label imprime
+                      00079         
+0011                  00080 apaga_digUni:
+                      00081         
+0011   1105           00082         bcf                     digUni                                          ; Desliga display das un
+                            idades
+0012   0186           00083         clrf            PORTB                                           ; Limpa PORTB
+0013   1585           00084         bsf             digDez                                          ; Liga display das dezenas
+0014   0822           00085         movf            dez,w                                           ; w = dez
+0015   2034           00086         call            display                                         ; Desvia para subrotina display
+0016   0086           00087         movwf           PORTB                                           ; PORTB = w, imprime no display 
+                            o valor retornado pela subrotina display
+0017   281B           00088         goto            exit_ISR                                        ; Sai da interrupção
+                      00089 
+0018                  00090 imprime:
+                      00091 
+0018   0823           00092         movf            uni,w                                           ; w = uni
+0019   2034           00093         call            display                                         ; Desvia para subrotina display
+001A   0086           00094         movwf           PORTB                                           ; PORTB = w, imprime no display 
+                            o valor retornado pela subrotina display
+                      00095         
+                      00096 ; -- Recuperação de contexto --
+                      00097 
+001B                  00098 exit_ISR:
+                      00099 
+001B   0E21           00100         swapf           STATUS_TEMP,w                           ; w = STATUS (com nibbles reinvertidos, 
+                            isto é, STATUS original)
+001C   0083           00101         movwf           STATUS                                          ; STATUS = STATUS (original)
+001D   0EA0           00102         swapf           W_TEMP,F                                        ; W_TEMP = W_TEMP (com nibbles i
+                            nvertidos)
+001E   0E20           00103         swapf           W_TEMP,w                                        ; w = W_TEMP (com nibbles reinve
+                            rtidos, isto é, w original)
+                      00104         
+001F   0009           00105         retfie                                                                  ; Retorna para execução 
+                            principal
+                      00106         
+                      00107 ; -- Fim da recuperação de contexto -- 
+                      00108 
+                      00109 
+                      00110 ; --- Programa principal ---
+                      00111 
+0020                  00112 inicio:
+                      00113 
+0020   1683           00114         bank1                                                                   ; Seleciona banco 1 de m
+                            emória
+0021   30F3           00115         movlw           H'F3'                                           ; w = F3h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0022   0085           00116         movwf           TRISA                                           ; Configura apenas RA3 e RA2 com
+                            o saídas digitais
+0023   3010           00117         movlw           H'10'                                           ; w = 10h
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0024   0086           00118         movwf           TRISB                                           ; Configura todo portb como saíd
+                            a digital, exceto RB4
+0025   3084           00119         movlw           H'84'                                           ; w = 84h
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0026   0081           00120         movwf           OPTION_REG                                      ; Timer0 incrementa pelo ciclo d
+                            e máquina e prescaler em 1:32
+0027   1283           00121         bank0                                                                   ; Seleciona o banco 0 de
+                             memória
+0028   3007           00122         movlw           H'07'                                           ; w = 07h
+0029   009F           00123         movwf           CMCON                                           ; Desabilita os comparadores int
+                            ernos
+002A   30A0           00124         movlw           H'A0'                                           ; w = C0h
+002B   008B           00125         movwf           INTCON                                          ; Habilita a interrupção global 
+                            e a interrupção do timer0
+002C   3021           00126         movlw           H'21'                                           ; w = 21h
+002D   1185           00127         bcf                     digDez                                          ; Desliga display das de
+                            zenas
+002E   1105           00128         bcf                     digUni                                          ; Desliga display das un
+                            idades
+                      00129         
+                      00130         
+                      00131 ; --- Loop infinito ---
+                      00132 
+002F                  00133 loop:                                                                           ; Cria loop infinito
+                      00134                 
+002F   3003           00135         movlw           D'3'                                            ; w = 3d
+0030   00A2           00136         movwf           dez                                                     ; dez = 3d
+0031   3002           00137         movlw           D'2'                                            ; w = 2d
+0032   00A3           00138         movwf           uni                                                     ; uni = 2ds
+                      00139         
+0033   282F           00140         goto            loop                                            ; Desvia para loop infinito
+                      00141         
+                      00142 ; --- Sub Rotinas ---
+                      00143 
+0034                  00144 display:
+                      00145 
+0034   0782           00146         addwf           PCL,F                                           ; Adiciona em PCL o valor de 0 a
+                             Fh do nibble menos sig. de disp, fazendo com
+                      00147                                                                                         ; que haja um de
+                            svio condicional para "disp" comandos a frente
+                      00148         
+                      00149         ; Display         EDC.BAFG
+                      00150                 
+0035   34EE           00151         retlw           B'11101110'                                     ; Retorna o valor binário que es
+                            creve 0 para a subrotina adiciona
+0036   3428           00152         retlw           B'00101000'                                     ; Retorna o valor binário que es
+                            creve 1 para a subrotina adiciona
+0037   34CD           00153         retlw           B'11001101'                                     ; Retorna o valor binário que es
+                            creve 2 para a subrotina adiciona
+0038   346D           00154         retlw           B'01101101'                                     ; Retorna o valor binário que es
+                            creve 3 para a subrotina adiciona
+0039   342B           00155         retlw           B'00101011'                                     ; Retorna o valor binário que es
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            creve 4 para a subrotina adiciona
+003A   3467           00156         retlw           B'01100111'                                     ; Retorna o valor binário que es
+                            creve 5 para a subrotina adiciona
+003B   34E7           00157         retlw           B'11100111'                                     ; Retorna o valor binário que es
+                            creve 6 para a subrotina adiciona
+003C   342C           00158         retlw           B'00101100'                                     ; Retorna o valor binário que es
+                            creve 7 para a subrotina adiciona
+003D   34EF           00159         retlw           B'11101111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+003E   346F           00160         retlw           B'01101111'                                     ; Retorna o valor binário que es
+                            creve 9 para a subrotina adiciona
+003F   34AF           00161         retlw           B'10101111'                                     ; Retorna o valor binário que es
+                            creve A para a subrotina adiciona
+0040   34E3           00162         retlw           B'11100011'                                     ; Retorna o valor binário que es
+                            creve b para a subrotina adiciona
+0041   34C6           00163         retlw           B'11000110'                                     ; Retorna o valor binário que es
+                            creve C para a subrotina adiciona
+0042   34E9           00164         retlw           B'11101001'                                     ; Retorna o valor binário que es
+                            creve d para a subrotina adiciona
+0043   34C7           00165         retlw           B'11000111'                                     ; Retorna o valor binário que es
+                            creve E para a subrotina adiciona
+0044   3487           00166         retlw           B'10000111'                                     ; Retorna o valor binário que es
+                            creve 8 para a subrotina adiciona
+                      00167         
+                      00168 
+                      00169         
+                      00170         
+                      00171         end                                                                             ; Fim do program
+                            a
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ADDEN                             00000003
+ADEN                              00000003
+BRGH                              00000002
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CIS                               00000003
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             0000001F
+CMIE                              00000006
+CMIF                              00000006
+CREN                              00000004
+CSRC                              00000007
+DATA_CP_OFF                       00003FFF
+DATA_CP_ON                        00003EFF
+DC                                00000001
+EEADR                             0000009B
+EECON1                            0000009C
+EECON2                            0000009D
+EEDATA                            0000009A
+EEIE                              00000007
+EEIF                              00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_BO                            00000000
+NOT_BOD                           00000000
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RBPU                          00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+OERR                              00000001
+OPTION_REG                        00000081
+OSCF                              00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PIE1                              0000008C
+PIR1                              0000000C
+PORTA                             00000005
+PORTB                             00000006
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RA7                               00000007
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+STATUS                            00000003
+STATUS_TEMP                       00000021
+SYNC                              00000004
+T0CS                              00000005
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  8
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISA7                            00000007
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRMT                              00000001
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TXSTA                             00000098
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             0000009F
+VREN                              00000007
+VROE                              00000006
+VRR                               00000005
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+W_TEMP                            00000020
+Z                                 00000002
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_OFF                           00003FFF
+_CP_ON                            00001FFF
+_DEVID1                           00002006
+_ER_OSC_CLKOUT                    00003FFF
+_ER_OSC_NOCLKOUT                  00003FFE
+_EXTCLK_OSC                       00003FEF
+_FOSC_ECIO                        00003FEF
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FEE
+_FOSC_INTOSCCLK                   00003FFD
+_FOSC_INTOSCIO                    00003FFC
+_FOSC_LP                          00003FEC
+_FOSC_XT                          00003FED
+_HS_OSC                           00003FEE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_INTOSC_OSC_CLKOUT                00003FFD
+_INTOSC_OSC_NOCLKOUT              00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FEC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC_CLKOUT                    00003FFF
+MPASM  5.51         MULTIPLEXACAODISPLAYS.ASM   9-1-2020  20:18:14         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC_NOCLKOUT                  00003FFE
+_WDTE_OFF                         00003FFB
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FED
+__16F628A                         00000001
+__DEBUG                           1
+apaga_digUni                      00000011
+bank0                             bcf     STATUS,RP0
+bank1                             bsf     STATUS,RP0
+botao1                            PORTB,4
+dez                               00000022
+digDez                            PORTA,3
+digUni                            PORTA,2
+display                           00000034
+exit_ISR                          0000001B
+imprime                           00000018
+inicio                            00000020
+loop                              0000002F
+uni                               00000023
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : X---XXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXX----------- ---------------- ---------------- ----------------
+2000 : -------X-------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    66
+Program Memory Words Free:  1982
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     3 reported,     0 suppressed
+
+
